@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>CCAR-F Study App</title>
+  <meta name="theme-color" content="#ffffff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="CCAR-F">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <!-- Apply the saved theme before the first paint (same key as KEY_THEME in js/storage.js) -->
+  <script>try { if (localStorage.getItem("ccarf.theme.v1") === "dark") document.documentElement.dataset.theme = "dark"; } catch (error) { /* light theme */ }</script>
+  <link rel="stylesheet" href="css/styles.css?v=1.0.0">
+</head>
+<body>
+  <header class="site-bar">
+    <div class="site-bar-inner">
+      <span class="site-brand">CCAR-F Study</span>
+      <span class="site-actions">
+        <button class="site-link" id="help-link" type="button">Help</button>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false" aria-label="Dark mode">
+          <svg class="icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+          <svg class="icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg>
+          <span class="theme-label">Dark mode</span>
+        </button>
+      </span>
+    </div>
+  </header>
+  <main id="app"></main>
+  <input type="file" id="catalog-file" accept=".json,application/json" hidden>
+  <input type="file" id="backup-file" accept=".json,application/json" hidden>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <div class="update-bar" id="update-bar" role="status" hidden>
+    <span>A new version of the app is ready.</span>
+    <button class="update-reload" id="update-reload" type="button">Reload</button>
+  </div>
+  <noscript><p class="notice">This app needs JavaScript.</p></noscript>
+
+  <!-- Catalogs: to add a catalog, create a file in data/ and add one script tag here.
+       ?v=1.0.0 forces browsers to load changed files; raise the date after each update. -->
+  <script src="data/core/catalog.js?v=1.0.0"></script>
+  <script src="data/core/d1.js?v=1.0.0"></script>
+  <script src="data/core/d2.js?v=1.0.0"></script>
+  <script src="data/core/d3.js?v=1.0.0"></script>
+  <script src="data/core/d4.js?v=1.0.0"></script>
+  <script src="data/core/d5.js?v=1.0.0"></script>
+  <script src="data/core-domains.js?v=1.0.0"></script>
+  <script src="data/exam-guide-samples.js?v=1.0.0"></script>
+
+  <script src="js/version.js?v=1.0.0"></script>
+  <script src="js/config.js?v=1.0.0"></script>
+  <script src="js/quiz.js?v=1.0.0"></script>
+  <script src="js/storage.js?v=1.0.0"></script>
+  <script src="js/learning.js?v=1.0.0"></script>
+  <script src="js/catalog-import.js?v=1.0.0"></script>
+  <script src="js/stats.js?v=1.0.0"></script>
+  <script src="js/exam.js?v=1.0.0"></script>
+  <script src="js/backup.js?v=1.0.0"></script>
+  <script src="js/help.js?v=1.0.0"></script>
+  <script src="js/render.js?v=1.0.0"></script>
+  <script src="js/app.js?v=1.0.0"></script>
+</body>
+</html>

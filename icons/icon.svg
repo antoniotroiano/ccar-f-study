@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="CCAR-F Study">
+  <!-- Flash cards with a check mark: practice questions you answer and tick off. The art stays inside the central 80 % so it also works as a maskable icon. -->
+  <rect width="512" height="512" fill="#0f6b63"/>
+  <rect x="120" y="96" width="272" height="296" fill="#4f9d94" transform="rotate(-9 256 256)"/>
+  <rect x="120" y="96" width="272" height="296" fill="#9fe1cb" transform="rotate(-4 256 256)"/>
+  <rect x="120" y="104" width="272" height="304" fill="#ffffff"/>
+  <!-- question mark on the card -->
+  <path d="M214 178c0-26 18-42 42-42s42 16 42 40c0 36-42 38-42 72" fill="none" stroke="#0f6b63" stroke-width="22" stroke-linecap="square" stroke-linejoin="miter"/>
+  <rect x="245" y="266" width="22" height="22" fill="#0f6b63"/>
+  <!-- check mark badge -->
+  <circle cx="372" cy="388" r="70" fill="#0f6b63"/>
+  <circle cx="372" cy="388" r="58" fill="#1e7a3c"/>
+  <path d="M342 390l22 22 40-46" fill="none" stroke="#ffffff" stroke-width="20" stroke-linecap="square" stroke-linejoin="miter"/>
+</svg>
