@@ -197,7 +197,8 @@ function renderCatalogList(entries, notice, report, backupInfo) {
     if (entry.examRemainingMs !== null) {
       paused += '<div class="paused-run exam-running"><div class="paused-label"><span>' + (entry.examPaused ? "Exam paused" : "Exam in progress") + '</span><span>' +
         formatDuration(entry.examRemainingMs / 1000) + " left</span></div></div>";
-      actions += '<button class="button" data-action="resume-exam" data-catalog-index="' + index + '">Resume exam</button>';
+      actions += '<button class="button" data-action="resume-exam" data-catalog-index="' + index + '">Resume exam</button>' +
+        '<button class="button ghost" data-action="discard-exam" data-catalog-index="' + index + '">Discard exam</button>';
     }
 
     return '<article class="catalog">' +
@@ -262,7 +263,8 @@ function renderExamSetup(availability, examRemainingMs, examPaused) {
   if (examRemainingMs !== null) {
     body += '<p class="round-summary">An exam is ' + (examPaused ? "paused" : "in progress") + ' · ' + formatDuration(examRemainingMs / 1000) + " left.</p>" +
       '<div class="button-row"><button class="button" data-action="resume-exam-here">Resume exam</button>' +
-      '<button class="button secondary" data-action="start-exam">Start a new exam</button></div>';
+      '<button class="button secondary" data-action="start-exam">Start a new exam</button>' +
+      '<button class="button ghost" data-action="discard-exam-here">Discard exam</button></div>';
   } else if (availability.isAvailable) {
     body += '<div class="button-row"><button class="button" data-action="start-exam">Start exam</button></div>';
   } else {
