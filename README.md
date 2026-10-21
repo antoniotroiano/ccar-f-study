@@ -27,7 +27,7 @@ The app is a static website. Open the published address, or install it:
 
 An installed app on the iPhone has its own storage, separate from Safari. Use **Export progress** and **Restore from backup** to move your progress into it.
 
-Live address: `https://antoniotroiano.github.io/ccar-f-study/` (fill in after the first deploy).
+Live address: `https://<your-user>.github.io/<repository>/` (fill in after the first deploy).
 
 ## Run it locally
 
@@ -108,7 +108,7 @@ node tools/bump-version.js patch                # raise the version before a rel
 2. Add an entry to `CHANGELOG.md`.
 3. Commit and push.
 
-Open pages show a **Reload** button when a new version is ready. Rule of thumb: `patch` for fixes and new questions, `minor` for new features, `major` for changes that break saved data.
+Open pages show a **Reload** button when a new version is ready. Always raise the version before you publish changed files: the version in the file links is what makes browsers fetch the new files. If you test locally and still see an old state, reload the page twice (or once with Cmd/Ctrl + Shift + R). Rule of thumb: `patch` for fixes and new questions, `minor` for new features, `major` for changes that break saved data.
 
 ### Publish on GitHub Pages
 

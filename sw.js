@@ -1,7 +1,8 @@
 /* Service worker: lets the app open without a connection once it has been loaded.
    - On install it caches every file that index.html uses, plus the manifest and icons.
    - The start page is fetched from the network first (so updates arrive) and falls back to the cached copy offline.
-   - Everything else is served from the cache and refreshed in the background.
+   - Everything else is served from the cache and refreshed in the background. Requests ask the server to confirm the file
+     (cache: "no-cache"), so the browser's HTTP cache cannot keep serving an outdated copy.
    The cache is named after the version (js/version.js): a new version starts a fresh cache and the old one is deleted. */
 importScripts("js/version.js"); // defines APP_VERSION
 const CACHE_NAME = "ccarf-" + APP_VERSION;
@@ -26,7 +27,10 @@ self.addEventListener("install", function (event) {
     filesOfStartPage().then(function (files) {
       return caches.open(CACHE_NAME).then(function (cache) {
         // no duplicates: addAll fails when the same file is listed twice
-        return cache.addAll(Array.from(new Set(files.concat(EXTRA_FILES))));
+        // cache: "reload" skips the browser's own HTTP cache, so a new version never stores old copies of the files
+        return cache.addAll(Array.from(new Set(files.concat(EXTRA_FILES))).map(function (file) {
+          return new Request(file, { cache: "reload" });
+        }));
       });
     }).then(function () { return self.skipWaiting(); })
   );
@@ -46,7 +50,7 @@ self.addEventListener("fetch", function (event) {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).then(function (response) {
+      fetch(request.url, { cache: "no-cache" }).then(function (response) {
         const copy = response.clone();
         caches.open(CACHE_NAME).then(function (cache) { cache.put("index.html", copy); });
         return response;
@@ -57,7 +61,7 @@ self.addEventListener("fetch", function (event) {
 
   event.respondWith(
     caches.match(request).then(function (cached) {
-      const refresh = fetch(request).then(function (response) {
+      const refresh = fetch(request.url, { cache: "no-cache" }).then(function (response) {
         if (response.ok) {
           const copy = response.clone();
           caches.open(CACHE_NAME).then(function (cache) { cache.put(request, copy); });
