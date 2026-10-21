@@ -27,7 +27,7 @@ The app is a static website. Open the published address, or install it:
 
 An installed app on the iPhone has its own storage, separate from Safari. Use **Export progress** and **Restore from backup** to move your progress into it.
 
-Live address: `https://<your-user>.github.io/<repository>/` (fill in after the first deploy).
+Live address: `https://antoniotroiano.github.io/ccar-f-study/` (fill in after the first deploy).
 
 ## Run it locally
 
