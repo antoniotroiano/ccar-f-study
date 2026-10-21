@@ -234,6 +234,17 @@ function showResults() {
 }
 
 /* Exam flow. The end time is stored, so the timer survives reloads and tab switches. */
+// Throws away a running or paused exam. Its answers were not recorded yet (that happens on submit), so statistics stay as they are.
+function discardExam(catalog, stayOnCatalogPage) {
+  if (!window.confirm("Discard the exam in progress? Its answers are not counted and the time is gone.")) return;
+  clearExam(catalog.id);
+  if (stayOnCatalogPage) {
+    showCatalogScreen(true);
+  } else {
+    showCatalogList("Exam discarded.");
+  }
+}
+
 function startExam(catalog) {
   currentExam = createExam(catalog, Date.now());
   activeCatalog = catalog;
@@ -455,6 +466,12 @@ appElement.addEventListener("click", function (event) {
       if (!restoreRunningExam(activeCatalog) || window.confirm("Starting a new exam discards the exam in progress. Continue?")) {
         startExam(activeCatalog);
       }
+      break;
+    case "discard-exam":
+      discardExam(catalogFromButton(target), false);
+      break;
+    case "discard-exam-here":
+      discardExam(activeCatalog, true);
       break;
     case "resume-exam":
       resumeExam(catalogFromButton(target));
