@@ -6,7 +6,9 @@
    The cache is named after the version (js/version.js): a new version starts a fresh cache and the old one is deleted. */
 importScripts("js/version.js"); // defines APP_VERSION
 const CACHE_NAME = "ccarf-" + APP_VERSION;
-const EXTRA_FILES = ["manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
+const EXTRA_FILES = ["manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/apple-touch-icon.png"];
+const START_PAGE = new URL("index.html", self.registration.scope).pathname;
+const SCOPE_PATH = new URL(self.registration.scope).pathname;
 
 // All files that index.html loads, found by reading its src and href attributes
 async function filesOfStartPage() {
@@ -39,10 +41,18 @@ self.addEventListener("install", function (event) {
 self.addEventListener("activate", function (event) {
   event.waitUntil(
     caches.keys().then(function (names) {
-      return Promise.all(names.filter(function (name) { return name !== CACHE_NAME; }).map(function (name) { return caches.delete(name); }));
+      return Promise.all(names.filter(function (name) { return name.indexOf("ccarf-") === 0 && name !== CACHE_NAME; }).map(function (name) { return caches.delete(name); }));
     }).then(function () { return self.clients.claim(); })
   );
 });
+
+// On a bad connection the cached start page is better than waiting for the network: give up on it after a few seconds
+function withTimeout(promise, ms) {
+  return new Promise(function (resolve, reject) {
+    const timer = setTimeout(function () { reject(new Error("timeout")); }, ms);
+    promise.then(function (value) { clearTimeout(timer); resolve(value); }, function (error) { clearTimeout(timer); reject(error); });
+  });
+}
 
 self.addEventListener("fetch", function (event) {
   const request = event.request;
@@ -50,9 +60,13 @@ self.addEventListener("fetch", function (event) {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request.url, { cache: "no-cache" }).then(function (response) {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then(function (cache) { cache.put("index.html", copy); });
+      withTimeout(fetch(request.url, { cache: "no-cache" }), 4000).then(function (response) {
+        // only a good copy of the start page replaces the cached one (not a 404 page)
+        const path = new URL(request.url).pathname;
+        if (response.ok && (path === START_PAGE || path === SCOPE_PATH)) {
+          const copy = response.clone();
+          event.waitUntil(caches.open(CACHE_NAME).then(function (cache) { return cache.put("index.html", copy); }));
+        }
         return response;
       }).catch(function () { return caches.match("index.html"); })
     );
@@ -64,10 +78,11 @@ self.addEventListener("fetch", function (event) {
       const refresh = fetch(request.url, { cache: "no-cache" }).then(function (response) {
         if (response.ok) {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then(function (cache) { cache.put(request, copy); });
+          return caches.open(CACHE_NAME).then(function (cache) { return cache.put(request, copy); }).then(function () { return response; });
         }
         return response;
       }).catch(function () { return cached; });
+      event.waitUntil(refresh); // keeps the worker alive until the background refresh is stored
       return cached || refresh;
     })
   );

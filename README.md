@@ -8,7 +8,7 @@ A practice app for the **Claude Certified Architect – Foundations (CCAR-F)** e
 
 - **Learning rounds** of 5, 10, 15 or 20 questions, with the reason why an answer is right or wrong and where the question comes from.
 - **Five boxes** (Leitner system): rate every right answer Guessed, Hard, Good or Easy. Wrong and guessed answers go back to box 1. Low boxes come first in the next round.
-- **Practice my mistakes:** a round with only the questions you got wrong, guessed or rated Hard.
+- **Practice my mistakes:** a round with only the questions you got wrong or guessed.
 - **Rounds by scenario:** practise one of the six exam scenarios, with the full scenario text from the Exam Guide.
 - **Practice weak domains:** a round with questions only from the domains where your recent answers are below 70 %.
 - **Repeat wrong questions** (optional switch per catalog): a wrong question comes back at the end of the round, up to 3 times.

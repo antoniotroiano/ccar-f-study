@@ -1,10 +1,9 @@
 /* Helpers */
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"];
 
+// Safe for text and for attribute values: also escapes both kinds of quotes
 function escapeHtml(text) {
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML;
+  return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 function correctOptionsOf(question) {
@@ -70,7 +69,7 @@ function renderSourceEntry(source) {
   // Docs are checked against their markdown version (.md); readers get the normal web page.
   const href = source.url ? source.url.replace(/\.md$/, "") : "";
   const link = href
-    ? '<a href="' + escapeHtml(href) + '" target="_blank" rel="noopener">' + label + "</a>"
+    ? '<a href="' + escapeHtml(href) + '" target="_blank" rel="noopener noreferrer">' + label + "</a>"
     : label;
   return '<p class="source">' + link + "</p>" +
     (source.quote ? '<blockquote class="source-quote">“' + escapeHtml(source.quote) + "”</blockquote>" : "");
@@ -307,9 +306,17 @@ function isExamDistributionProvisional() {
 function renderRepeatSwitch(isOn) {
   return '<div class="switch-row"><button class="switch" role="switch" aria-checked="' + isOn + '" data-action="toggle-repeat" aria-labelledby="repeat-label">' +
     '<span class="switch-knob"></span></button>' +
-    '<div><p class="switch-label" id="repeat-label">Repeat wrong questions<span class="switch-state"> · ' + (isOn ? "on" : "off") + "</span></p>" +
+    '<div><p class="switch-label" id="repeat-label">Repeat wrong questions<span class="switch-state" aria-hidden="true"> · ' + (isOn ? "on" : "off") + "</span></p>" +
     '<p class="hint">A wrong question comes back at the end of the round, up to ' + CONFIG.MAX_REPEATS +
     " times. If it is still wrong after that, it goes to box 1 and returns in a later round. Repeats do not count towards your score.</p></div></div>";
+}
+
+// Switch: single-choice questions need a second step ("Check answer"), so a slipped tap does not count
+function renderCheckFirstSwitch(isOn) {
+  return '<div class="switch-row"><button class="switch" role="switch" aria-checked="' + isOn + '" data-action="toggle-check-first" aria-labelledby="check-first-label">' +
+    '<span class="switch-knob"></span></button>' +
+    '<div><p class="switch-label" id="check-first-label">Check before answering<span class="switch-state" aria-hidden="true"> · ' + (isOn ? "on" : "off") + "</span></p>" +
+    '<p class="hint">Tapping an answer only selects it. The answer counts when you press "Check answer". Useful on a phone.</p></div></div>';
 }
 
 // Button for a round with only the questions in box 1
@@ -319,7 +326,7 @@ function renderMistakesButton(count) {
 
 function renderMistakesHint(count) {
   return '<p class="hint">' + (count === 0 ? "No mistakes yet. " : "") +
-    "Mistakes are the questions in box 1: answered wrong, or rated Hard. They leave it when you answer them right and rate them Good or Easy.</p>";
+    "Mistakes are the questions in box 1: answered wrong or guessed. They leave it when you answer them right and rate them Good or Easy.</p>";
 }
 
 // Button for a round from the weak domains only (only for catalogs with more than one domain)
@@ -332,13 +339,13 @@ function renderWeakBlock(weakDomains) {
     " % (at least " + CONFIG.MIN_ANSWERS + " answers in the domain).</p>";
 }
 
-function renderFixedRoundScreen(catalog, stats, hasPausedRun, repeatWrong, mistakeCount) {
+function renderFixedRoundScreen(catalog, stats, hasPausedRun, repeatWrong, mistakeCount, checkFirst) {
   const count = catalog.questions.length;
   return '<section class="screen">' + renderBackLink("Catalogs") +
     '<h1 class="page-title">' + escapeHtml(catalog.title) + "</h1>" +
     '<div class="two-col"><div>' +
     '<p class="round-summary">This catalog has ' + count + " questions. Every round uses all of them.</p>" +
-    renderRepeatSwitch(repeatWrong) +
+    renderRepeatSwitch(repeatWrong) + renderCheckFirstSwitch(checkFirst) +
     (hasPausedRun ? '<p class="hint">Starting a new round replaces your paused round.</p>' : "") +
     '<div class="button-row"><button class="button" data-action="start-round">Start round</button>' + renderMistakesButton(mistakeCount) + "</div>" +
     renderMistakesHint(mistakeCount) +
@@ -356,7 +363,7 @@ function scenariosInCatalog(catalog) {
 
 function renderCatalogScreen(catalog, setup, availableCount, stats, hasPausedRun, availability, examRemainingMs, examPaused, mistakeCount) {
   const repeatWrong = repeatWrongEnabled(setup, catalog);
-  if (catalog.fixedRound) return renderFixedRoundScreen(catalog, stats, hasPausedRun, repeatWrong, mistakeCount);
+  if (catalog.fixedRound) return renderFixedRoundScreen(catalog, stats, hasPausedRun, repeatWrong, mistakeCount, setup.checkFirst);
   const domainsInCatalog = stats.domains.map(function (item) { return item.domain; });
   const lengthChoices = CONFIG.ROUND_LENGTHS.map(function (length) {
     return renderChoice(String(length), length, setup.length === length, "set-length");
@@ -392,7 +399,7 @@ function renderCatalogScreen(catalog, setup, availableCount, stats, hasPausedRun
         (chosenScenario ? '<p class="hint"><strong>' + escapeHtml(chosenScenario.title) + "</strong></p>" : "") +
         '<p class="hint choice-note">A round uses one focus: all questions, one domain or one scenario. Choosing one clears the other.</p>'
       : "") +
-    renderRepeatSwitch(repeatWrong) +
+    renderRepeatSwitch(repeatWrong) + renderCheckFirstSwitch(setup.checkFirst) +
     '<p class="round-summary' + (shorter ? " short" : "") + '">' + summary + "</p>" +
     (hasPausedRun ? '<p class="hint">Starting a new round replaces your paused round.</p>' : "") +
     '<div class="button-row"><button class="button" data-action="start-round"' + (roundSize === 0 ? " disabled" : "") + ">Start round</button>" +
@@ -416,7 +423,9 @@ function renderProgress(round) {
     if (isAnswered(round, index)) state = round.answers[index].isCorrect ? "right" : "wrong";
     return '<span class="segment ' + state + (index === round.currentIndex ? " current" : "") + '"></span>';
   }).join("");
-  return '<div class="segments">' + segments + "</div>";
+  const right = round.answers.filter(function (answer, index) { return isAnswered(round, index) && answer.isCorrect; }).length;
+  const wrong = round.answers.filter(function (answer, index) { return isAnswered(round, index) && !answer.isCorrect; }).length;
+  return '<div class="segments" role="img" aria-label="Progress: ' + (right + wrong) + " of " + total + " answered, " + right + " right, " + wrong + ' wrong">' + segments + "</div>";
 }
 
 // pending: options toggled on an open multiple-response question (null for single choice)
@@ -444,14 +453,14 @@ function renderOption(option, index, answer, pending, required) {
       state = " selected";
       badge = icon("check");
       note = "Selected";
-    } else if (pending.length >= required) {
+    } else if (required > 1 && pending.length >= required) {
       state = " blocked";
       isDisabled = true; // N already selected: deselect one first
     }
   }
 
   return '<button class="option' + state + '" data-action="answer" data-option-index="' + index + '"' +
-    pressed + (isDisabled ? " disabled" : "") + ">" +
+    pressed + (answer ? ' aria-disabled="true"' : (isDisabled ? " disabled" : "")) + ">" +
     '<span class="badge">' + badge + "</span>" +
     '<span class="option-body"><span class="option-text">' + escapeHtml(option.text) + "</span>" +
     (note ? '<span class="option-note">' + note + "</span>" : "") + "</span></button>";
@@ -480,7 +489,7 @@ function renderFlagBox(flagInfo) {
 }
 
 function renderFeedback(catalog, question, answer, isFresh, flagInfo, round) {
-  let html = '<section class="feedback ' + (answer.isCorrect ? "correct" : "wrong") + (isFresh ? " fresh" : "") + '" id="feedback">' +
+  let html = '<section class="feedback ' + (answer.isCorrect ? "correct" : "wrong") + (isFresh ? " fresh" : "") + '" id="feedback" tabindex="-1">' +
     '<h3 class="verdict">' + (answer.isCorrect ? icon("check") + "Correct" : icon("cross") + "Not quite") + "</h3>" +
     renderAnswerExplanation(catalog, question, answer.selected, false);
 
@@ -506,7 +515,7 @@ function renderRatingButton(rating, hint) {
     '<span>' + RATING_LABELS[rating] + '</span><span class="rating-hint">' + hint + "</span></button>";
 }
 
-function renderActionBar(round, pending) {
+function renderActionBar(round, pending, checkFirst) {
   const index = round.currentIndex;
   const isLast = index === round.questions.length - 1;
   const back = '<button class="button secondary' + (needsRating(round, index) ? " compact" : "") + '" data-action="prev" aria-label="Back"' +
@@ -517,7 +526,7 @@ function renderActionBar(round, pending) {
     main = '<div class="rating-group"><p class="rating-prompt">How well did you know it?</p><div class="rating-buttons">' +
       renderRatingButton("guessed", "box 1") + renderRatingButton("hard", "same box") + renderRatingButton("good", "+1 box") + renderRatingButton("easy", "+2 boxes") +
       "</div></div>";
-  } else if (!isAnswered(round, index) && isMultipleResponse(round.questions[index])) {
+  } else if (!isAnswered(round, index) && (isMultipleResponse(round.questions[index]) || checkFirst)) {
     main = '<button class="button" data-action="check-answer"' +
       (pending.length === requiredSelections(round.questions[index]) ? "" : " disabled") + ">Check answer</button>";
   } else {
@@ -529,8 +538,12 @@ function renderActionBar(round, pending) {
 }
 
 // Shown only with a mouse or keyboard (hidden on touch screens by CSS)
+// The single-key shortcuts (letters, digits) can be switched off (WCAG 2.1.4); Enter and the arrows stay.
 function renderKeyboardHint(isRating) {
-  return '<p class="kbd-hint">Keyboard: ' + (isRating ? "1 Guessed · 2 Hard · 3 Good · 4 Easy" : "A–D choose") + " · Enter continue · ← → navigate</p>";
+  const on = loadSettings().shortcuts;
+  const keys = on ? (isRating ? "1 Guessed · 2 Hard · 3 Good · 4 Easy" : "letters choose") + " · " : "";
+  return '<p class="kbd-hint" data-rating="' + (isRating ? "1" : "0") + '">Keyboard: ' + keys + "Enter continue · ← → navigate · " +
+    '<button class="link-button" data-action="toggle-shortcuts">' + (on ? "Turn letter and digit shortcuts off" : "Turn letter and digit shortcuts on") + "</button></p>";
 }
 
 function renderQuestion(round, isFresh, pendingSelection, flagInfo) {
@@ -538,13 +551,15 @@ function renderQuestion(round, isFresh, pendingSelection, flagInfo) {
   const question = round.questions[index];
   const answer = round.answers[index];
   const required = requiredSelections(question);
-  const pending = required > 1 ? pendingSelection : null;
+  const checkFirst = flagInfo.checkFirst === true; // set by currentFlagInfo() in app.js
+  const pending = required > 1 || checkFirst ? pendingSelection : null;
 
   const options = question.options.map(function (option, optionIndex) {
     return renderOption(option, optionIndex, answer, pending, required);
   }).join("");
 
   return '<section class="screen with-action-bar' + (needsRating(round, index) ? " tall-bar" : "") + '">' +
+    '<h1 class="sr-only">Question ' + (index + 1) + " of " + round.questions.length + "</h1>" +
     '<div class="topbar">' +
     '<button class="pause-button" data-action="pause" aria-label="Pause and save progress">' + icon("pause") + "<span>Pause</span></button>" +
     renderProgress(round) +
@@ -559,7 +574,7 @@ function renderQuestion(round, isFresh, pendingSelection, flagInfo) {
     renderKeyboardHint(needsRating(round, index)) + "</div>" +
     '<div class="q-main"><div class="options" role="group" aria-label="Answer options">' + options + "</div>" +
     (answer ? renderFeedback(round.catalog, question, answer, isFresh, flagInfo, round) : "") +
-    "</div></div></section>" + renderActionBar(round, pendingSelection);
+    "</div></div></section>" + renderActionBar(round, pendingSelection, checkFirst);
 }
 
 /* Results screen */
@@ -660,7 +675,7 @@ function renderStatsSection(catalog, stats) {
     ? '<ul class="round-list">' + stats.rounds.map(function (entry) {
         const date = new Date(entry.t);
         return '<li><span class="round-date">' + (isNaN(date) ? "" : date.toLocaleDateString()) + "</span>" +
-          renderBar(entry.percent) + '<span class="round-score">' + entry.correct + "/" + entry.length + " · " + entry.percent + " %</span></li>";
+          renderBar(entry.percent) + '<span class="round-score">' + Number(entry.correct) + "/" + Number(entry.length) + " · " + entry.percent + " %</span></li>";
       }).join("") + "</ul>"
     : '<p class="hint">No finished rounds yet.</p>';
 
@@ -671,8 +686,8 @@ function renderStatsSection(catalog, stats) {
           return domain + " " + percent(entry.perDomain[domain].correct, entry.perDomain[domain].total) + " %";
         }).join(" · ");
         return "<li><span class=\"round-date\">" + (isNaN(date) ? "" : date.toLocaleDateString()) + "</span>" +
-          renderBar(entry.percent) + '<span class="round-score">' + entry.correct + "/" + entry.total + " · " + entry.percent + " %</span>" +
-          '<span class="exam-domains">' + domainText + (entry.percent >= EXAM.PASS_PERCENT ? " · above ≈" : " · below ≈") + EXAM.PASS_PERCENT + " %" +
+          renderBar(entry.percent) + '<span class="round-score">' + Number(entry.correct) + "/" + Number(entry.total) + " · " + entry.percent + " %</span>" +
+          '<span class="exam-domains">' + domainText + (isExamPassed(entry.correct, entry.total) ? " · above ≈" : " · below ≈") + EXAM.PASS_PERCENT + " %" +
           (entry.timedOut ? " · time ran out" : "") + "</span></li>";
       }).join("") + "</ul>"
     : '<p class="hint">No exam simulations yet.</p>';
@@ -681,11 +696,11 @@ function renderStatsSection(catalog, stats) {
     '<div class="stats-top"><div>' + renderReady(stats) + "</div><div>" +
     '<div class="stat-pair">' +
     '<div class="stat"><span class="stat-value">' + formatRate(stats.overall.recent, false) + '</span><span class="stat-label">Last ' + CONFIG.LAST_ANSWERS_WINDOW + " answers</span></div>" +
-    '<div class="stat"><span class="stat-value">' + formatRate(stats.overall.allTime, false) + '</span><span class="stat-label">All time (' + stats.overall.allTime.total + " answers)</span></div></div>" +
+    '<div class="stat"><span class="stat-value">' + formatRate(stats.overall.allTime, false) + '</span><span class="stat-label">Stored answers (' + stats.overall.allTime.total + ", at most " + CONFIG.HISTORY_LIMIT + ")</span></div></div>" +
     '<p class="coverage"><strong>Coverage:</strong> ' + stats.coverage.seen + " of " + stats.coverage.total + " questions answered at least once</p>" +
     renderBar(stats.coverage.percent) + "</div></div>" +
     '<div class="stats-blocks"><div class="stats-block"><h3>By domain</h3>' +
-    '<table class="stats-table"><thead><tr><th>Domain</th><th>Last ' + CONFIG.LAST_ANSWERS_WINDOW + "</th><th>All time</th><th>Status</th></tr></thead><tbody>" +
+    '<table class="stats-table"><thead><tr><th>Domain</th><th>Last ' + CONFIG.LAST_ANSWERS_WINDOW + "</th><th>Stored</th><th>Status</th></tr></thead><tbody>" +
     domainRows + "</tbody></table></div>" +
     '<div class="stats-block"><h3>Recent rounds</h3>' + rounds + "</div>" +
     '<div class="stats-block"><h3>Exam simulations</h3>' + exams + "</div></div></article>";

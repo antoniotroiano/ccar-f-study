@@ -35,6 +35,23 @@ function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+// Raw copy of some keys, so a multi-key write can be undone when one of the writes fails.
+function snapshotKeys(keys) {
+  const snapshot = {};
+  keys.forEach(function (key) {
+    try { snapshot[key] = localStorage.getItem(key); } catch (error) { snapshot[key] = null; }
+  });
+  return snapshot;
+}
+
+function restoreKeys(snapshot) {
+  Object.keys(snapshot).forEach(function (key) {
+    try {
+      if (snapshot[key] === null) localStorage.removeItem(key); else localStorage.setItem(key, snapshot[key]);
+    } catch (error) { /* nothing more to do */ }
+  });
+}
+
 /* Paused rounds */
 function saveRun(round) {
   const runs = readJson(KEY_RUNS, isPlainObject, {});
@@ -102,7 +119,7 @@ function saveHistory(history) {
 /* Finished rounds */
 function isValidRoundRecord(entry) {
   return isPlainObject(entry) && typeof entry.catalogId === "string" &&
-    Number.isFinite(entry.length) && Number.isFinite(entry.percent);
+    Number.isFinite(entry.length) && Number.isFinite(entry.correct) && Number.isFinite(entry.percent);
 }
 
 function loadRounds() {
@@ -133,7 +150,7 @@ function clearExam(catalogId) {
 /* Finished exams */
 function isValidExamResult(entry) {
   return isPlainObject(entry) && typeof entry.catalogId === "string" &&
-    Number.isFinite(entry.total) && Number.isFinite(entry.percent) && isPlainObject(entry.perDomain);
+    Number.isFinite(entry.total) && Number.isFinite(entry.correct) && Number.isFinite(entry.percent) && isPlainObject(entry.perDomain);
 }
 
 function loadExamResults() {
@@ -145,13 +162,22 @@ function saveExamResults(results) {
 }
 
 /* Reported questions: kept separately from progress, so "Reset progress" does not remove them */
+function isValidFlag(flag) {
+  return isPlainObject(flag) && typeof flag.catalogId === "string" && typeof flag.questionId === "string" && Number.isFinite(flag.t);
+}
+
 function loadFlags() {
-  return readJson(KEY_FLAGS, isPlainObject, {});
+  const stored = readJson(KEY_FLAGS, isPlainObject, {});
+  const flags = {};
+  Object.keys(stored).forEach(function (key) {
+    if (isValidFlag(stored[key])) flags[key] = stored[key];
+  });
+  return flags;
 }
 
 function flagFor(catalogId, questionId) {
   const flag = loadFlags()[progressKey(catalogId, questionId)];
-  return isPlainObject(flag) ? flag : null;
+  return isValidFlag(flag) ? flag : null;
 }
 
 function saveFlags(flags) {
@@ -176,6 +202,8 @@ function loadSettings() {
   return {
     length: CONFIG.ROUND_LENGTHS.indexOf(settings.length) !== -1 ? settings.length : CONFIG.DEFAULT_ROUND_LENGTH,
     domain: typeof settings.domain === "string" ? settings.domain : "all",
+    checkFirst: settings.checkFirst === true,   // single choice: tap selects, "Check answer" confirms
+    shortcuts: settings.shortcuts !== false,    // single-key shortcuts (A-F, 1-4) on question screens
     repeat: isPlainObject(settings.repeat) ? settings.repeat : {} // per catalog: repeat wrong questions at the end of the round
   };
 }
@@ -193,8 +221,7 @@ function saveSettings(settings) {
 function resetCatalogProgress(catalog) {
   const dataKey = dataId(catalog);
   const isDerived = Boolean(catalog.progressId);
-  const questionIds = {};
-  catalog.questions.forEach(function (question) { questionIds[question.id] = true; });
+  const questionIds = new Set(catalog.questions.map(function (question) { return question.id; }));
 
   // Resetting a source catalog also resets the catalogs made from it. Resetting a derived one only touches its own questions.
   const affectedIds = isDerived ? [catalog.id] : (window.CATALOGS || []).filter(function (item) {
@@ -205,13 +232,13 @@ function resetCatalogProgress(catalog) {
   const progress = loadProgress();
   Object.keys(progress).forEach(function (key) {
     const belongs = isDerived
-      ? Object.keys(questionIds).some(function (id) { return key === progressKey(dataKey, id); })
+      ? catalog.questions.some(function (question) { return key === progressKey(dataKey, question.id); })
       : key.indexOf(dataKey + "::") === 0;
     if (belongs) delete progress[key];
   });
   saveProgress(progress);
   saveHistory(loadHistory().filter(function (entry) {
-    return !(entry.catalogId === dataKey && (!isDerived || questionIds[entry.questionId]));
+    return !(entry.catalogId === dataKey && (!isDerived || questionIds.has(entry.questionId)));
   }));
   saveRounds(loadRounds().filter(function (entry) { return !isAffected(entry.catalogId); }));
   saveExamResults(loadExamResults().filter(function (entry) { return !isAffected(entry.catalogId); }));
@@ -225,11 +252,14 @@ function resetCatalogProgress(catalog) {
 function loadImportedCatalogs(takenIds) {
   const stored = readJson(KEY_IMPORTED, isPlainObject, {});
   const catalogs = [];
+  loadImportedCatalogs.skipped = []; // ids of stored catalogs that failed the check (the data stays in storage)
   Object.keys(stored).forEach(function (id) {
     const result = validateCatalogJson(stored[id], takenIds);
     if (result.catalog && result.catalog.id === id) {
       result.catalog.imported = true;
       catalogs.push(result.catalog);
+    } else {
+      loadImportedCatalogs.skipped.push(id);
     }
   });
   return catalogs;

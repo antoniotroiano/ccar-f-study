@@ -17,27 +17,64 @@ function catalogFromButton(target) {
 }
 
 // Every screen change goes through here, so the exam timer never keeps running on another screen.
-function show(html, keepScroll) {
-  stopExamTimer();
-  appElement.innerHTML = html;
-  if (!keepScroll) window.scrollTo(0, 0);
+const BASE_TITLE = document.title;
+
+// CSS selector for the control that has focus (by its data- attributes), so focus can return to it after a re-render
+function selectorOfFocus() {
+  const element = document.activeElement;
+  if (!element || !appElement.contains(element)) return null;
+  const parts = Array.from(element.attributes).filter(function (attribute) {
+    return attribute.name.indexOf("data-") === 0;
+  }).map(function (attribute) { return "[" + attribute.name + '="' + attribute.value.replace(/["\\]/g, "") + '"]'; });
+  return parts.length ? element.tagName.toLowerCase() + parts.join("") : null;
 }
 
-/* Paused round and running exam of a catalog, or null (data that no longer fits the catalog is dropped) */
+function show(html, keepScroll) {
+  stopExamTimer();
+  const selector = keepScroll ? selectorOfFocus() : null;
+  appElement.innerHTML = html;
+  if (!keepScroll) window.scrollTo(0, 0);
+
+  // A re-render destroys the focused element. Keep keyboard and screen reader users where they were,
+  // or on the heading of a new screen. The window title follows the screen.
+  const heading = appElement.querySelector("h1, h2");
+  document.title = heading ? heading.textContent + " · " + BASE_TITLE : BASE_TITLE;
+  let target = selector ? appElement.querySelector(selector) : null;
+  if (!target && !keepScroll && heading) {
+    heading.tabIndex = -1;
+    target = heading;
+  }
+  if (target) target.focus({ preventScroll: true });
+
+  // role="status" inside freshly inserted HTML is often not read out; announce it through the fixed live region
+  const status = appElement.querySelector('[role="status"]');
+  if (status && !keepScroll) announce(status.textContent);
+}
+
+function announce(text) {
+  document.getElementById("announcer").textContent = text;
+}
+
+/* Paused round and running exam of a catalog, or null when there is none or it no longer fits the catalog.
+   These only read: unusable data is removed when the learner tries to resume it (see resumeRound, resumeExam). */
 function restorePausedRound(catalog) {
   const saved = loadRun(catalog.id);
   if (!saved) return null;
-  const restored = restoreRound(catalog, saved);
-  if (!restored) clearRun(catalog.id);
-  return restored;
+  try {
+    return restoreRound(catalog, saved);
+  } catch (error) {
+    return null;
+  }
 }
 
 function restoreRunningExam(catalog) {
   const saved = loadExam(catalog.id);
   if (!saved) return null;
-  const restored = restoreExam(catalog, saved);
-  if (!restored) clearExam(catalog.id);
-  return restored;
+  try {
+    return restoreExam(catalog, saved);
+  } catch (error) {
+    return null;
+  }
 }
 
 /* Home */
@@ -151,7 +188,8 @@ function startRound(catalog, domainFilter, length, mode) {
 function resumeRound(catalog) {
   const restored = restorePausedRound(catalog);
   if (!restored) {
-    showCatalogList("The paused round could not be restored.");
+    clearRun(catalog.id);
+    showCatalogList("The paused round no longer matches the catalog and was discarded.");
     return;
   }
   currentRound = restored;
@@ -162,12 +200,18 @@ function resumeRound(catalog) {
 
 function currentFlagInfo() {
   const question = currentRound.questions[currentRound.currentIndex];
-  return { flag: flagFor(dataId(currentRound.catalog), question.id), isEditing: isEditingFlag };
+  return { flag: flagFor(dataId(currentRound.catalog), question.id), isEditing: isEditingFlag, checkFirst: setup.checkFirst };
 }
 
 function showQuestion(isFresh) {
   show(renderQuestion(currentRound, Boolean(isFresh), pendingSelection, currentFlagInfo()), isFresh);
-  if (isFresh) document.getElementById("feedback").scrollIntoView({ block: "nearest" });
+  if (isFresh) {
+    const feedback = document.getElementById("feedback");
+    feedback.scrollIntoView({ block: "nearest" });
+    feedback.focus({ preventScroll: true });
+    const answer = currentRound.answers[currentRound.currentIndex];
+    announce(answer.isCorrect ? "Correct." : "Not quite.");
+  }
 }
 
 // Re-render the current question in place, for example after editing a report
@@ -192,7 +236,7 @@ function handleOptionClick(optionIndex) {
   const index = currentRound.currentIndex;
   if (isAnswered(currentRound, index)) return;
   const question = currentRound.questions[index];
-  if (!isMultipleResponse(question)) {
+  if (!isMultipleResponse(question) && !setup.checkFirst) {
     handleAnswer([optionIndex]);
     return;
   }
@@ -208,21 +252,32 @@ function handleAnswer(selected) {
   pendingSelection = [];
 
   // wrong: rated automatically, recorded now, and (with the switch on) the question comes back at the end
+  let stored = true;
   if (!currentRound.answers[index].isCorrect) {
-    applyCompletion(currentRound, index);
+    stored = applyCompletion(currentRound, index);
     if (shouldRepeat(currentRound, index)) addRepeat(currentRound, index);
   }
-  saveRun(currentRound);
+  stored = saveRun(currentRound) && stored;
   showQuestion(true);
+  if (!stored) showSaveError();
 }
 
 function handleRating(rating) {
   const index = currentRound.currentIndex;
   if (!needsRating(currentRound, index)) return;
   rateAnswer(currentRound, index, rating);
-  applyCompletion(currentRound, index);
-  saveRun(currentRound);
+  const stored = applyCompletion(currentRound, index) && saveRun(currentRound);
   showQuestion(true);
+  if (!stored) showSaveError();
+}
+
+// Added to confirmations of deletions: points to the backup when there is none yet
+function backupTip() {
+  return loadBackupInfo().lastExportAt ? "" : "\n\nTip: you have not exported a backup yet. Cancel and use Backup on the home screen first.";
+}
+
+function showSaveError() {
+  showToast("Could not save. This answer is not stored. Export a backup and free up space (remove an imported catalog).");
 }
 
 function pauseRound() {
@@ -233,7 +288,7 @@ function pauseRound() {
 function showResults() {
   const round = currentRound;
   const results = calculateResults(round);
-  recordFinishedRound(round, results);
+  if (!recordFinishedRound(round, results)) showSaveError();
   clearRun(round.catalog.id);
   show(renderResults(round, results, boxDistribution(dataId(round.catalog), results.questionIds), computeStats(round.catalog)));
 }
@@ -260,7 +315,8 @@ function startExam(catalog, byScenario) {
 function resumeExam(catalog) {
   const restored = restoreRunningExam(catalog);
   if (!restored) {
-    showCatalogList("The running exam could not be restored.");
+    clearExam(catalog.id);
+    showCatalogList("The running exam no longer matches the catalog and was discarded.");
     return;
   }
   currentExam = restored;
@@ -319,8 +375,14 @@ function finishExam(timedOut) {
 
   const now = Date.now();
   const score = scoreExam(exam, timedOut, now);
-  applyExamTracking(exam, now);
-  recordExamResult(exam, score, now);
+  // All or nothing: when storing fails, the exam stays saved and can be submitted again
+  const snapshot = snapshotKeys([KEY_PROGRESS, KEY_HISTORY, KEY_EXAM_RESULTS]);
+  if (!(applyExamTracking(exam, now) && recordExamResult(exam, score, now))) {
+    restoreKeys(snapshot);
+    saveExam(exam);
+    showCatalogList("Could not save the exam result. The exam is kept: free up space (export a backup, remove an imported catalog) and submit it again.");
+    return;
+  }
   clearExam(exam.catalog.id);
   show(renderExamResults(exam, score));
 }
@@ -338,7 +400,7 @@ function handleExamAnswer(optionIndex) {
 /* Click handling: one listener, buttons carry a data-action */
 appElement.addEventListener("click", function (event) {
   const target = event.target.closest("[data-action]");
-  if (!target || target.disabled) return;
+  if (!target || target.disabled || target.getAttribute("aria-disabled") === "true") return;
 
   switch (target.dataset.action) {
     case "open-catalog":
@@ -358,7 +420,7 @@ appElement.addEventListener("click", function (event) {
       break;
     case "remove-imported": {
       const catalog = catalogFromButton(target);
-      if (window.confirm("Remove \"" + catalog.title + "\"? Your progress and statistics for it are deleted too.")) {
+      if (window.confirm("Remove \"" + catalog.title + "\"? Your progress and statistics for it are deleted too." + backupTip())) {
         resetCatalogProgress(catalog);
         removeImportedCatalog(catalog.id);
         window.CATALOGS.splice(allCatalogs().indexOf(catalog), 1);
@@ -375,6 +437,18 @@ appElement.addEventListener("click", function (event) {
     case "toggle-repeat":
       changeSetup({ repeat: Object.assign({}, setup.repeat, { [activeCatalog.id]: !repeatWrongEnabled(setup, activeCatalog) }) });
       break;
+    case "toggle-check-first":
+      changeSetup({ checkFirst: !setup.checkFirst });
+      break;
+    case "toggle-shortcuts": {
+      setup.shortcuts = !setup.shortcuts;
+      saveSettings(setup);
+      const hint = target.closest(".kbd-hint");
+      hint.outerHTML = renderKeyboardHint(hint.dataset.rating === "1");
+      const again = document.querySelector('[data-action="toggle-shortcuts"]');
+      if (again) again.focus();
+      break;
+    }
     case "set-domain":
       changeSetup({ domain: target.dataset.value });
       break;
@@ -407,7 +481,7 @@ appElement.addEventListener("click", function (event) {
       }
       break;
     case "reset-progress":
-      if (window.confirm("Reset all progress, statistics, exam results and paused work for \"" + activeCatalog.title + "\"? This cannot be undone.")) {
+      if (window.confirm("Reset all progress, statistics, exam results and paused work for \"" + activeCatalog.title + "\"? This cannot be undone." + backupTip())) {
         resetCatalogProgress(activeCatalog);
         showCatalogList("Progress reset.");
       }
@@ -547,7 +621,7 @@ appElement.addEventListener("click", function (event) {
 /* Keyboard shortcuts on question screens: A-D choose, 1-3 rate, Enter continue, arrows navigate */
 function clickEnabled(selector) {
   const button = document.querySelector(selector);
-  if (!button || button.disabled) return false;
+  if (!button || button.disabled || button.getAttribute("aria-disabled") === "true") return false;
   button.click();
   return true;
 }
@@ -560,6 +634,9 @@ document.addEventListener("keydown", function (event) {
 
   const key = event.key.toLowerCase();
   let handled = false;
+
+  const isSingleKey = /^[a-f1-4]$/.test(key);
+  if (isSingleKey && !setup.shortcuts) return;
 
   if (/^[a-f]$/.test(key)) {
     const index = key.charCodeAt(0) - 97;
@@ -674,6 +751,7 @@ function showToast(message) {
   const toast = document.getElementById("toast");
   toast.textContent = message;
   toast.hidden = false;
+  announce(message);
   clearTimeout(showToast.timer);
   showToast.timer = setTimeout(function () { toast.hidden = true; }, 3500);
 }
@@ -698,7 +776,7 @@ function exportProgress() {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 30000); // revoking at once can cancel the download in some browsers
   saveBackupInfo({ lastExportAt: new Date(now).toISOString() });
   showCatalogList("Backup file created. Keep it somewhere safe, for example in your cloud folder.");
 }
@@ -718,11 +796,16 @@ function restoreProgressFile(file) {
     const when = parsed.backup.exportedAt ? new Date(parsed.backup.exportedAt).toLocaleString() : "unknown date";
     const question = "Backup from " + when + ":\n" + counts.answers + " answers, " + counts.questions + " questions with progress, " +
       counts.rounds + " rounds, " + counts.exams + " exams, " + counts.reports + " reports, " + counts.catalogs + " imported catalogs.\n\n" +
-      "Merge it into this browser? For a question that exists in both, the newer answer wins. Nothing is deleted.";
+      "Merge it into this browser? For a question that exists in both, the newer answer wins. Nothing is deleted: " +
+      "reports and progress you removed here come back if they are in the file, and an imported catalog you already have is not replaced.";
     if (!window.confirm(question)) return;
 
     const builtInIds = allCatalogs().filter(function (catalog) { return !catalog.imported; }).map(function (catalog) { return catalog.id; });
     const result = mergeBackup(parsed.backup, builtInIds, allCatalogs().map(function (catalog) { return catalog.id; }));
+    if (result.failed) {
+      showCatalogList("", importReport("Backup not restored", ["The browser has no room left to store it. Nothing was changed. Remove an imported catalog or other data and try again."]));
+      return;
+    }
     result.catalogsAdded.forEach(function (catalog) { window.CATALOGS.push(catalog); });
     showCatalogList("", importReport(
       "Backup restored",
@@ -748,7 +831,6 @@ function applyTheme(theme) {
   document.querySelector('meta[name="theme-color"]').setAttribute("content", theme === "dark" ? "#1b2126" : "#ffffff");
   const toggle = document.getElementById("theme-toggle");
   const label = theme === "dark" ? "Light mode" : "Dark mode";
-  toggle.setAttribute("aria-pressed", String(theme === "dark"));
   toggle.setAttribute("aria-label", "Switch to " + label.toLowerCase());
   toggle.querySelector(".theme-label").textContent = label;
 }
@@ -763,6 +845,8 @@ applyTheme(loadTheme());
 
 /* Start: an exam whose time ran out while the page was closed is submitted right away */
 function startApp() {
+  const skipped = loadImportedCatalogs.skipped || [];
+  const skippedNotice = skipped.length ? "Could not load imported catalog(s): " + skipped.join(", ") + ". The data is still stored. Import the file again or remove it." : "";
   const expired = allCatalogs().find(function (catalog) {
     const exam = restoreRunningExam(catalog);
     return exam && examRemainingMs(exam, Date.now()) <= 0;
@@ -771,13 +855,18 @@ function startApp() {
     currentExam = restoreRunningExam(expired);
     finishExam(true);
   } else {
-    showCatalogList();
+    showCatalogList(skippedNotice);
   }
 }
 
 // Offline use and installation: needs https or localhost, so it is skipped when the page is opened from a file
 if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
-  navigator.serviceWorker.register("sw.js").catch(function () { /* the app works without it */ });
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(function (registration) {
+    // An installed app that returns from the background does not reload, so ask for a new version then
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "visible") registration.update().catch(function () { /* offline */ });
+    });
+  }).catch(function () { /* the app works without it */ });
 
   // A new service worker takes over after a deploy. The open page still runs the old files, so offer a reload.
   let hadController = Boolean(navigator.serviceWorker.controller);

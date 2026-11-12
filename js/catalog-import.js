@@ -166,6 +166,7 @@ function readQuestion(raw, position, scenarioIds, errors, warnings) {
   };
   if (explanation) question.explanation = explanation;
   if (source) question.source = source;
+  if (typeof raw.taskStatement === "string" && /^\d\.\d{1,2}$/.test(raw.taskStatement)) question.taskStatement = raw.taskStatement;
   if (scenario) question.scenario = scenario;
   return question;
 }
@@ -209,6 +210,10 @@ function validateCatalogJson(data, takenIds) {
           errors.push(label + " needs an id (letters, digits, - and _).");
           return;
         }
+        if (catalog.scenarios.some(function (item) { return item.id === scenario.id; })) {
+          errors.push(label + ": the id \"" + scenario.id + "\" is used twice.");
+          return;
+        }
         const scenarioTitle = readText(scenario.title, label + ".title", IMPORT_LIMITS.TITLE, true, errors);
         const scenarioText = readText(scenario.description, label + ".description", IMPORT_LIMITS.QUESTION, true, errors);
         catalog.scenarios.push({ id: scenario.id, title: scenarioTitle, description: scenarioText });
@@ -226,16 +231,16 @@ function validateCatalogJson(data, takenIds) {
   }
 
   const scenarioIds = catalog.scenarios.map(function (scenario) { return scenario.id; });
-  const seen = {};
+  const seen = new Set();
   catalog.questions = [];
   data.questions.forEach(function (raw, position) {
     const question = readQuestion(raw, position, scenarioIds, errors, warnings);
     if (!question) return;
-    if (seen[question.id]) {
+    if (seen.has(question.id)) {
       errors.push("Question " + (position + 1) + " (" + question.id + "): this id is used twice. Every question needs its own id.");
       return;
     }
-    seen[question.id] = true;
+    seen.add(question.id);
     catalog.questions.push(question);
   });
 

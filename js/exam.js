@@ -189,6 +189,7 @@ function restoreExam(catalog, saved) {
 
   for (let index = 0; index < saved.questions.length; index++) {
     const entry = saved.questions[index];
+    if (!isPlainObject(entry)) return null;
     const source = catalog.questions.find(function (question) { return question.id === entry.id; });
     if (!source || !Array.isArray(entry.optionOrder) || entry.optionOrder.length !== source.options.length) return null;
     const sortedOrder = entry.optionOrder.slice().sort(function (a, b) { return a - b; });
@@ -238,7 +239,7 @@ function scoreExam(exam, timedOut, now) {
     wrong: total - correct,
     unanswered: unanswered,
     percent: percent(correct, total),
-    isAbovePass: percent(correct, total) >= EXAM.PASS_PERCENT,
+    isAbovePass: isExamPassed(correct, total),
     perDomain: perDomain,
     wrongQuestions: wrongQuestions,
     timedOut: timedOut,
@@ -269,8 +270,7 @@ function applyExamTracking(exam, now) {
     history.push({ t: now, catalogId: catalogId, questionId: question.id, domain: question.domain, correct: isCorrect, mode: "exam" });
   });
 
-  saveProgress(progress);
-  saveHistory(history);
+  return saveProgress(progress) && saveHistory(history);
 }
 
 function recordExamResult(exam, score, now) {
@@ -289,5 +289,5 @@ function recordExamResult(exam, score, now) {
     timedOut: score.timedOut,
     durationSeconds: score.durationSeconds
   });
-  saveExamResults(results);
+  return saveExamResults(results);
 }

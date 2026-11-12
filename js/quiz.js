@@ -189,6 +189,7 @@ function restoreRound(catalog, saved) {
 
   for (let index = 0; index < saved.questions.length; index++) {
     const entry = saved.questions[index];
+    if (!isPlainObject(entry)) return null;
     const source = catalog.questions.find(function (question) { return question.id === entry.id; });
     if (!source || !Array.isArray(entry.optionOrder) || entry.optionOrder.length !== source.options.length) {
       return null;
@@ -217,6 +218,11 @@ function restoreRound(catalog, saved) {
 /* Results (repeats are practice only and never count) */
 function percent(correct, total) {
   return total === 0 ? 0 : Math.round((correct / total) * 100);
+}
+
+// Compares the exact share, not the rounded percent: 43 of 60 is 71.7 % and does not reach 72 %.
+function isExamPassed(correct, total) {
+  return total > 0 && (correct / total) * 100 >= EXAM.PASS_PERCENT;
 }
 
 function calculateResults(round) {

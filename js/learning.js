@@ -57,7 +57,7 @@ function selectWeakQuestions(catalog, length, progress) {
   return pickFromPool(catalog, pool, length, progress);
 }
 
-/* Practice my mistakes: the questions that sit in box 1, which means answered wrong or rated Hard.
+/* Practice my mistakes: the questions that sit in box 1, which means answered wrong or guessed.
    A question leaves box 1 when it is answered right and rated Good or Easy. */
 function mistakePool(catalog, domainFilter, progress) {
   return catalog.questions.filter(function (question) {
@@ -92,6 +92,7 @@ function applyCompletion(round, index) {
   entry.box = nextBox(entry.box, answer.rating);
   entry.last = Date.now();
 
+  let historyToSave = null;
   if (!question.isRepeat) {
     // A guessed answer was right by luck: it counts as wrong in every statistic
     const counted = answer.isCorrect && answer.rating !== "guessed";
@@ -105,11 +106,15 @@ function applyCompletion(round, index) {
       correct: counted,
       mode: "learn"
     });
-    saveHistory(history);
+    historyToSave = history;
   }
 
   progress[progressKey(catalogId, question.id)] = entry;
-  saveProgress(progress);
+  // Returns false when the browser refused to store. Both keys are put back then, so box and statistics stay consistent.
+  const snapshot = snapshotKeys([KEY_PROGRESS, KEY_HISTORY]);
+  const ok = (historyToSave === null || saveHistory(historyToSave)) && saveProgress(progress);
+  if (!ok) restoreKeys(snapshot);
+  return ok;
 }
 
 function recordFinishedRound(round, results) {
@@ -121,7 +126,7 @@ function recordFinishedRound(round, results) {
     correct: results.correct,
     percent: results.percent
   });
-  saveRounds(rounds);
+  return saveRounds(rounds);
 }
 
 // How many of the given questions now sit in each box
