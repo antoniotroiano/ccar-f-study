@@ -7,11 +7,13 @@ A practice app for the **Claude Certified Architect – Foundations (CCAR-F)** e
 ## Features
 
 - **Learning rounds** of 5, 10, 15 or 20 questions, with the reason why an answer is right or wrong and where the question comes from.
-- **Five boxes** (Leitner system): rate every right answer Hard, Good or Easy. Wrong answers go back to box 1. Low boxes come first in the next round.
-- **Practice my mistakes:** a round with only the questions you got wrong or rated Hard.
+- **Five boxes** (Leitner system): rate every right answer Guessed, Hard, Good or Easy. Wrong and guessed answers go back to box 1. Low boxes come first in the next round.
+- **Practice my mistakes:** a round with only the questions you got wrong, guessed or rated Hard.
+- **Rounds by scenario:** practise one of the six exam scenarios, with the full scenario text from the Exam Guide.
+- **Practice weak domains:** a round with questions only from the domains where your recent answers are below 70 %.
 - **Repeat wrong questions** (optional switch per catalog): a wrong question comes back at the end of the round, up to 3 times.
-- **Exam simulation:** 60 questions in 120 minutes, drawn by domain weight, no feedback until you submit. Mark questions, jump back, pause, automatic submit when time runs out.
-- **Statistics:** rate for the last 100 answers and for all answers, rate per domain, weak areas, coverage, recent rounds and exams, and a ready indicator.
+- **Exam simulation:** 60 questions in 120 minutes, drawn by domain weight, no feedback until you submit. A second variant, the **scenario exam**, works like the real one: it picks 4 of the 6 scenarios at random and draws all questions from them. Mark questions, jump back, pause, automatic submit when time runs out.
+- **Statistics:** rate for the last 100 answers and for all answers, rate per domain, rate per task statement of the Exam Guide (30), weak areas, coverage, recent rounds and exams, and a ready indicator.
 - **Select 2 questions**, scenarios, sources with quotes, and a "Report a problem" note on every question.
 - **Your own catalogs:** import them from a JSON file. The Help page has a template and a prompt for an AI.
 - **Backup:** export your progress to a file and merge it back in on another device.
@@ -86,6 +88,8 @@ js/                   the app, no framework
   render.js app.js help.js                screens, flow, help page
 data/                 catalogs (core catalog, per-domain catalogs, sample questions)
 tools/                check and release helpers (Node, no dependencies)
+  bump-version.js  release-notes.js       version number, text for the GitHub release
+  check-catalog.js validate-catalog.js    catalog checks
 sw.js manifest.webmanifest icons/         offline use and installation
 CHANGELOG.md          what changed in each version
 ```
@@ -98,17 +102,23 @@ No dependencies and no build step. The checks run with plain Node:
 node tools/validate-catalog.js file.json        # check a catalog file
 node tools/check-catalog.js data/core           # check the core catalog: structure and verbatim quotes
 node tools/bump-version.js patch                # raise the version before a release
+node tools/release-notes.js                     # print the changelog entry for the GitHub release
 ```
 
 `check-catalog.js` compares quotes with the text of the Exam Guide and the cached documentation pages. These source files are not part of this repository, so the check needs them locally in `docs/official/`.
 
 ### Release
 
-1. `node tools/bump-version.js patch` (or `minor`, `major`). This changes `js/version.js` and the `?v=` numbers in `index.html`.
-2. Add an entry to `CHANGELOG.md`.
-3. Commit and push.
+Versions follow `major.minor.patch`. While the version starts with `0.`, the app is in its early phase: `minor` for new features, `patch` for fixes and new questions. `1.0.0` is for the first version you consider stable, ideally after other people have tried it. After that: `major` for changes that break saved data, `minor` for new features, `patch` for fixes and new questions.
 
-Open pages show a **Reload** button when a new version is ready. Always raise the version before you publish changed files: the version in the file links is what makes browsers fetch the new files. If you test locally and still see an old state, reload the page twice (or once with Cmd/Ctrl + Shift + R). Rule of thumb: `patch` for fixes and new questions, `minor` for new features, `major` for changes that break saved data.
+Every version gets a GitHub release, created by hand:
+
+1. `node tools/bump-version.js minor` (or `patch`, `major`). This changes `js/version.js` and the `?v=` numbers in `index.html`.
+2. Add an entry for the new version at the top of `CHANGELOG.md`.
+3. Test locally (`python3 -m http.server 8000`), then commit and push to `main`.
+4. On GitHub: Releases, Draft a new release. Create the tag `v<version>` (for example `v0.1.0`) on `main`, use the title and text from `node tools/release-notes.js`, and publish.
+
+Open pages show a **Reload** button when a new version is ready. Always raise the version before you publish changed files: the version in the file links is what makes browsers fetch the new files. If you test locally and still see an old state, reload the page twice (or once with Cmd/Ctrl + Shift + R).
 
 ### Publish on GitHub Pages
 

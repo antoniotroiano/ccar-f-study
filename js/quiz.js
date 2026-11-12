@@ -39,8 +39,10 @@ function shuffledOrder(question) {
   return shuffle(question.options.map(function (_, index) { return index; }));
 }
 
+const ROUND_MODES = ["mixed", "mistakes", "weak"];
+
 // sourceQuestions: the catalog questions chosen for this round (see selectRoundQuestions)
-// mode: "mixed" (the normal choice of questions) or "mistakes" (only questions from box 1)
+// mode: "mixed" (the normal choice of questions), "mistakes" (only questions from box 1) or "weak" (only weak domains)
 function createRound(catalog, sourceQuestions, domainFilter, requestedLength, repeatWrong, mode) {
   return {
     catalog: catalog,
@@ -52,7 +54,7 @@ function createRound(catalog, sourceQuestions, domainFilter, requestedLength, re
     domainFilter: domainFilter,
     requestedLength: requestedLength,
     repeatWrong: Boolean(repeatWrong),
-    mode: mode === "mistakes" ? "mistakes" : "mixed"
+    mode: ROUND_MODES.indexOf(mode) !== -1 ? mode : "mixed"
   };
 }
 
@@ -182,7 +184,7 @@ function restoreRound(catalog, saved) {
     domainFilter: typeof saved.domainFilter === "string" ? saved.domainFilter : "all",
     requestedLength: Number(saved.requestedLength) || saved.questions.length,
     repeatWrong: saved.repeatWrong === true,
-    mode: saved.mode === "mistakes" ? "mistakes" : "mixed"
+    mode: ROUND_MODES.indexOf(saved.mode) !== -1 ? saved.mode : "mixed"
   };
 
   for (let index = 0; index < saved.questions.length; index++) {
@@ -220,9 +222,10 @@ function percent(correct, total) {
 function calculateResults(round) {
   const perDomain = {};
   const wrongQuestions = [];
-  const ratingCounts = { again: 0, hard: 0, good: 0, easy: 0 };
+  const ratingCounts = { again: 0, guessed: 0, hard: 0, good: 0, easy: 0 };
   const questionIds = [];
   let correctCount = 0;
+  let guessedCount = 0;
 
   round.questions.forEach(function (question, index) {
     if (question.isRepeat) return;
@@ -231,9 +234,13 @@ function calculateResults(round) {
     ratingCounts[answer.rating]++;
     if (!perDomain[question.domain]) perDomain[question.domain] = { correct: 0, wrong: 0 };
 
-    if (answer.isCorrect) {
+    if (answer.isCorrect && answer.rating !== "guessed") {
       correctCount++;
       perDomain[question.domain].correct++;
+    } else if (answer.isCorrect) {
+      // guessed: right by luck, so it is not correct, but it is not a review item either
+      guessedCount++;
+      perDomain[question.domain].wrong++;
     } else {
       perDomain[question.domain].wrong++;
       wrongQuestions.push({ question: question, selected: answer.selected });
@@ -244,7 +251,8 @@ function calculateResults(round) {
   return {
     total: total,
     correct: correctCount,
-    wrong: total - correctCount,
+    wrong: total - correctCount - guessedCount,
+    guessed: guessedCount,
     percent: percent(correctCount, total),
     perDomain: perDomain,
     wrongQuestions: wrongQuestions,

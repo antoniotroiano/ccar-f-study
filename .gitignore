@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+
+# Local tool settings and editor files
+.claude/
+.idea/
+.vscode/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+
+# Local-only material: planning notes, the official Exam Guide, cached documentation pages,
+# personal score reports and the ideas list. The whole docs/ folder stays on this computer.
+# tools/check-catalog.js reads its sources from docs/official/ when they are there.
+docs/
+
+# Internal planning notes of the project (they name the employer, so they are not published)
+cca-f-study-app-project-plan.md
+cca-f-study-app-build-brief-step*.md

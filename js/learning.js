@@ -2,7 +2,8 @@
 function nextBox(box, rating) {
   const current = box >= 1 ? box : 1;
   switch (rating) {
-    case "again": return 1;
+    case "again":
+    case "guessed": return 1;
     case "hard": return current;
     case "good": return Math.min(current + 1, CONFIG.MAX_BOX);
     case "easy": return Math.min(current + 2, CONFIG.MAX_BOX);
@@ -10,13 +11,26 @@ function nextBox(box, rating) {
   return current;
 }
 
+/* The focus of a round is one string: "all", a domain ("D1") or a scenario ("scenario:s3"). */
+const SCENARIO_PREFIX = "scenario:";
+
+function matchesFilter(question, filter) {
+  if (filter === "all") return true;
+  if (filter.indexOf(SCENARIO_PREFIX) === 0) return question.scenario === filter.slice(SCENARIO_PREFIX.length);
+  return question.domain === filter;
+}
+
 /* Choosing the questions of a round.
    Priority: low boxes first, random inside a box. About half of the round is new questions
    when enough exist. If one group is too small, the other fills the gap. */
 function selectRoundQuestions(catalog, domainFilter, length, progress) {
   const pool = catalog.questions.filter(function (question) {
-    return domainFilter === "all" || question.domain === domainFilter;
+    return matchesFilter(question, domainFilter);
   });
+  return pickFromPool(catalog, pool, length, progress);
+}
+
+function pickFromPool(catalog, pool, length, progress) {
   const target = Math.min(length, pool.length);
 
   const boxOf = function (question) { return progressEntry(progress, dataId(catalog), question.id).box; };
@@ -31,11 +45,23 @@ function selectRoundQuestions(catalog, domainFilter, length, progress) {
   return review.slice(0, reviewCount).concat(fresh.slice(0, freshCount));
 }
 
+/* Practice weak domains: a normal round (same choice of questions), but only from the domains
+   the statistics mark as weak. The weak domains are worked out again whenever a round starts. */
+function weakDomainsOf(catalog) {
+  return computeStats(catalog).weakDomains.map(function (item) { return item.domain; });
+}
+
+function selectWeakQuestions(catalog, length, progress) {
+  const weak = weakDomainsOf(catalog);
+  const pool = catalog.questions.filter(function (question) { return weak.indexOf(question.domain) !== -1; });
+  return pickFromPool(catalog, pool, length, progress);
+}
+
 /* Practice my mistakes: the questions that sit in box 1, which means answered wrong or rated Hard.
    A question leaves box 1 when it is answered right and rated Good or Easy. */
 function mistakePool(catalog, domainFilter, progress) {
   return catalog.questions.filter(function (question) {
-    return (domainFilter === "all" || question.domain === domainFilter) &&
+    return (matchesFilter(question, domainFilter)) &&
       progressEntry(progress, dataId(catalog), question.id).box === 1;
   });
 }
@@ -50,7 +76,7 @@ function selectMistakeQuestions(catalog, domainFilter, length, progress) {
 
 function availableQuestionCount(catalog, domainFilter) {
   return catalog.questions.filter(function (question) {
-    return domainFilter === "all" || question.domain === domainFilter;
+    return matchesFilter(question, domainFilter);
   }).length;
 }
 
@@ -67,14 +93,16 @@ function applyCompletion(round, index) {
   entry.last = Date.now();
 
   if (!question.isRepeat) {
-    if (answer.isCorrect) entry.right++; else entry.wrong++;
+    // A guessed answer was right by luck: it counts as wrong in every statistic
+    const counted = answer.isCorrect && answer.rating !== "guessed";
+    if (counted) entry.right++; else entry.wrong++;
     const history = loadHistory();
     history.push({
       t: Date.now(),
       catalogId: catalogId,
       questionId: question.id,
       domain: question.domain,
-      correct: answer.isCorrect,
+      correct: counted,
       mode: "learn"
     });
     saveHistory(history);

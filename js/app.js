@@ -64,7 +64,8 @@ function showCatalogList(notice, report) {
 function showCatalogScreen(keepScroll) {
   const catalog = activeCatalog;
   const stats = computeStats(catalog);
-  if (setup.domain !== "all" && !stats.domains.some(function (item) { return item.domain === setup.domain; })) {
+  if (setup.domain !== "all" && !stats.domains.some(function (item) { return item.domain === setup.domain; }) &&
+      !scenariosInCatalog(catalog).some(function (item) { return SCENARIO_PREFIX + item.id === setup.domain; })) {
     setup.domain = "all";
   }
   const exam = restoreRunningExam(catalog);
@@ -131,9 +132,13 @@ function startRound(catalog, domainFilter, length, mode) {
   const progress = loadProgress();
   const selected = mode === "mistakes"
     ? selectMistakeQuestions(catalog, domainFilter, length, progress)
-    : selectRoundQuestions(catalog, domainFilter, length, progress);
+    : mode === "weak"
+      ? selectWeakQuestions(catalog, length, progress)
+      : selectRoundQuestions(catalog, domainFilter, length, progress);
   if (selected.length === 0) {
-    showCatalogList(mode === "mistakes" ? "No mistakes left to practise. Well done!" : "No questions available for this selection.");
+    showCatalogList(mode === "mistakes" ? "No mistakes left to practise. Well done!"
+      : mode === "weak" ? "No weak areas right now. Well done!"
+      : "No questions available for this selection.");
     return;
   }
   currentRound = createRound(catalog, selected, domainFilter, length, repeatWrongEnabled(setup, catalog), mode);
@@ -245,8 +250,8 @@ function discardExam(catalog, stayOnCatalogPage) {
   }
 }
 
-function startExam(catalog) {
-  currentExam = createExam(catalog, Date.now());
+function startExam(catalog, byScenario) {
+  currentExam = createExam(catalog, Date.now(), byScenario);
   activeCatalog = catalog;
   saveExam(currentExam);
   showExamQuestion(false);
@@ -387,6 +392,11 @@ appElement.addEventListener("click", function (event) {
         startRound(activeCatalog, activeCatalog.fixedRound ? "all" : setup.domain, activeCatalog.fixedRound ? activeCatalog.questions.length : setup.length, "mistakes");
       }
       break;
+    case "start-weak":
+      if (!restorePausedRound(activeCatalog) || window.confirm("Starting a new round replaces your paused round. Continue?")) {
+        startRound(activeCatalog, "all", setup.length, "weak");
+      }
+      break;
     case "resume":
       resumeRound(catalogFromButton(target));
       break;
@@ -465,6 +475,11 @@ appElement.addEventListener("click", function (event) {
     case "start-exam":
       if (!restoreRunningExam(activeCatalog) || window.confirm("Starting a new exam discards the exam in progress. Continue?")) {
         startExam(activeCatalog);
+      }
+      break;
+    case "start-exam-scenarios":
+      if (!restoreRunningExam(activeCatalog) || window.confirm("Starting a new exam discards the exam in progress. Continue?")) {
+        startExam(activeCatalog, true);
       }
       break;
     case "discard-exam":
@@ -550,8 +565,8 @@ document.addEventListener("keydown", function (event) {
     const index = key.charCodeAt(0) - 97;
     handled = clickEnabled('[data-action="answer"][data-option-index="' + index + '"]') ||
       clickEnabled('[data-action="exam-answer"][data-option-index="' + index + '"]');
-  } else if (key === "1" || key === "2" || key === "3") {
-    handled = clickEnabled('[data-action="rate"][data-rating="' + ["hard", "good", "easy"][Number(key) - 1] + '"]');
+  } else if (key === "1" || key === "2" || key === "3" || key === "4") {
+    handled = clickEnabled('[data-action="rate"][data-rating="' + ["guessed", "hard", "good", "easy"][Number(key) - 1] + '"]');
   } else if (key === "arrowleft") {
     handled = clickEnabled('[data-action="prev"]') || clickEnabled('[data-action="exam-prev"]');
   } else if (key === "arrowright") {

@@ -624,6 +624,8 @@ p { margin: 0; }
   color: var(--ink-soft);
 }
 
+.hint.choice-note { margin-top: 14px; }
+
 /* Round setup */
 .choice-group {
   display: flex;
@@ -695,7 +697,7 @@ p { margin: 0; }
 
 .rating-group { flex: 1; display: grid; gap: 6px; }
 .rating-prompt { font-size: 0.875rem; font-weight: 650; color: var(--ink-soft); }
-.rating-buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.rating-buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .action-bar .rating-group .button { flex: none; }
 
 .button.rating {
@@ -708,10 +710,12 @@ p { margin: 0; }
 
 .rating-hint { font-size: 0.75rem; font-weight: 500; opacity: 0.85; }
 
+.button.rating.guessed,
 .button.rating.hard,
 .button.rating.good,
 .button.rating.easy { background: var(--surface); color: var(--primary); border-color: var(--line); }
 
+.button.rating.guessed:hover,
 .button.rating.hard:hover,
 .button.rating.good:hover,
 .button.rating.easy:hover { background: var(--primary-soft); border-color: var(--primary); }
@@ -1266,3 +1270,11 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
   font-weight: 650;
   cursor: pointer;
 }
+
+/* Task statement list (catalog page) */
+.task-details { margin-top: 16px; }
+.task-details summary { font-weight: 650; cursor: pointer; }
+.task-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; }
+.task-row { display: grid; grid-template-columns: 2.5rem 1fr auto; gap: 2px 8px; align-items: baseline; }
+.task-row .bar { grid-column: 2 / 4; }
+.task-title { font-size: 0.875rem; }

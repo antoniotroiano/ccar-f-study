@@ -41,6 +41,44 @@ function selectExamQuestions(catalog) {
   return groupByScenario(shuffle(chosen));
 }
 
+/* Exam like the real one: 4 of the scenarios, picked at random, and all questions come from them.
+   The domain quotas are the target. When the chosen scenarios hold too few questions of a domain,
+   the gap is filled with other questions of the same scenarios, so the exam still has EXAM.QUESTIONS. */
+const EXAM_SCENARIO_COUNT = 4;
+
+function examScenarioIds(catalog) {
+  const ids = [];
+  catalog.questions.forEach(function (question) {
+    if (question.scenario && ids.indexOf(question.scenario) === -1) ids.push(question.scenario);
+  });
+  return ids;
+}
+
+// Available when every possible choice of 4 scenarios holds enough questions
+function scenarioExamAvailability(catalog) {
+  const counts = examScenarioIds(catalog).map(function (id) {
+    return catalog.questions.filter(function (question) { return question.scenario === id; }).length;
+  }).sort(function (a, b) { return a - b; });
+  const smallest = counts.slice(0, EXAM_SCENARIO_COUNT).reduce(function (sum, count) { return sum + count; }, 0);
+  return { isAvailable: counts.length >= EXAM_SCENARIO_COUNT && smallest >= EXAM.QUESTIONS };
+}
+
+function selectScenarioExamQuestions(catalog) {
+  const chosenIds = shuffle(examScenarioIds(catalog)).slice(0, EXAM_SCENARIO_COUNT);
+  const pool = catalog.questions.filter(function (question) { return chosenIds.indexOf(question.scenario) !== -1; });
+  const quotas = examQuotas();
+  let chosen = [];
+  DOMAINS.forEach(function (domain) {
+    const inDomain = pool.filter(function (question) { return question.domain === domain; });
+    chosen = chosen.concat(shuffle(inDomain).slice(0, quotas[domain]));
+  });
+  if (chosen.length < EXAM.QUESTIONS) {
+    const rest = shuffle(pool.filter(function (question) { return chosen.indexOf(question) === -1; }));
+    chosen = chosen.concat(rest.slice(0, EXAM.QUESTIONS - chosen.length));
+  }
+  return groupByScenario(shuffle(chosen));
+}
+
 // Questions of the same scenario follow each other (order of scenarios stays random).
 function groupByScenario(questions) {
   const order = [];
@@ -60,8 +98,9 @@ function firstUnansweredIndex(exam) {
 
 /* Exam state. answers[i] is the list of chosen option indexes or null.
    A multiple-response question counts as answered only once all N options are selected. */
-function createExam(catalog, now) {
-  const questions = selectExamQuestions(catalog).map(function (question) {
+function createExam(catalog, now, byScenario) {
+  const selected = byScenario ? selectScenarioExamQuestions(catalog) : selectExamQuestions(catalog);
+  const questions = selected.map(function (question) {
     return buildQuestion(question, shuffledOrder(question), false);
   });
   return {

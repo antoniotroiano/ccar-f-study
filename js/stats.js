@@ -42,6 +42,26 @@ function computeStats(catalog) {
     };
   });
 
+  // per task statement (30 in the Exam Guide); questions without one in their source label are left out
+  const statementOf = {};
+  catalog.questions.forEach(function (question) {
+    const match = question.source && /Task Statement (\d\.\d+)/.exec(question.source.label || "");
+    if (match && window.TASK_STATEMENTS && window.TASK_STATEMENTS[match[1]]) statementOf[question.id] = match[1];
+  });
+  const statements = Object.keys(window.TASK_STATEMENTS || {}).filter(function (id) {
+    return Object.keys(statementOf).some(function (questionId) { return statementOf[questionId] === id; });
+  }).map(function (id) {
+    const entries = history.filter(function (entry) { return statementOf[entry.questionId] === id; });
+    const all = tally(entries);
+    return {
+      id: id,
+      title: window.TASK_STATEMENTS[id],
+      questions: Object.keys(statementOf).filter(function (questionId) { return statementOf[questionId] === id; }).length,
+      allTime: all,
+      hasData: all.total >= TASK_MIN_ANSWERS
+    };
+  });
+
   const seen = catalog.questions.filter(function (question) {
     const entry = progressEntry(progress, dataId(catalog), question.id);
     return entry.right + entry.wrong > 0;
@@ -65,6 +85,7 @@ function computeStats(catalog) {
   return {
     overall: { recent: tally(lastAnswers(history)), allTime: tally(history) },
     domains: domains,
+    statements: statements,
     weakDomains: domains.filter(function (item) { return item.isWeak; }),
     coverage: { seen: seen, total: catalog.questions.length, percent: coveragePercent },
     ready: { isReady: allGreen && coverageOk && examsOk, allGreen: allGreen, coverageOk: coverageOk, examsOk: examsOk },

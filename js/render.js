@@ -248,7 +248,21 @@ function renderDomainStatus(domains) {
     '<ul class="domain-list domain-list-wide">' + rows + "</ul>";
 }
 
-function renderExamSetup(availability, examRemainingMs, examPaused) {
+// Rate per task statement of the Exam Guide, grouped by domain, in a collapsed block
+function renderStatementStatus(statements) {
+  if (!statements.length) return "";
+  const rows = statements.map(function (item) {
+    return '<li class="task-row"><span class="domain-name">' + item.id + '</span><span class="task-title">' + escapeHtml(item.title) + "</span>" +
+      '<span class="domain-score">' + (item.hasData ? item.allTime.rate + " % · " + item.allTime.total + " answers" : item.allTime.total + " answers") + "</span>" +
+      (item.hasData ? renderBar(item.allTime.rate) : '<div class="bar"></div>') + "</li>";
+  }).join("");
+  return '<details class="task-details"><summary>By task statement (' + statements.length + ")</summary>" +
+    '<p class="hint">The task statements of the Exam Guide. Rate of all your answers to questions of this task statement, shown from ' +
+    TASK_MIN_ANSWERS + " answers. Every task statement has only a few questions, so treat single values with care.</p>" +
+    '<ul class="task-list">' + rows + "</ul></details>";
+}
+
+function renderExamSetup(catalog, availability, examRemainingMs, examPaused) {
   const quotas = examQuotas();
   const distribution = DOMAINS.filter(function (domain) { return quotas[domain] > 0; }).map(function (domain) {
     return domain + " " + quotas[domain];
@@ -260,13 +274,21 @@ function renderExamSetup(availability, examRemainingMs, examPaused) {
     '<p class="hint">Questions per domain: ' + distribution +
     (isExamDistributionProvisional() ? " (provisional, equal split until the Exam Guide weights are set)" : "") + ".</p>";
 
+  const scenarioExam = scenarioExamAvailability(catalog).isAvailable;
+  if (scenarioExam) {
+    body += '<p class="hint"><strong>Scenario exam:</strong> like the real exam, it picks ' + EXAM_SCENARIO_COUNT + " of the " + examScenarioIds(catalog).length +
+      " scenarios at random and draws all " + EXAM.QUESTIONS + " questions from them. The domain split follows the weights as far as these scenarios allow.</p>";
+  }
+
   if (examRemainingMs !== null) {
     body += '<p class="round-summary">An exam is ' + (examPaused ? "paused" : "in progress") + ' · ' + formatDuration(examRemainingMs / 1000) + " left.</p>" +
       '<div class="button-row"><button class="button" data-action="resume-exam-here">Resume exam</button>' +
       '<button class="button secondary" data-action="start-exam">Start a new exam</button>' +
+      (scenarioExam ? '<button class="button secondary" data-action="start-exam-scenarios">Start a new scenario exam</button>' : "") +
       '<button class="button ghost" data-action="discard-exam-here">Discard exam</button></div>';
   } else if (availability.isAvailable) {
-    body += '<div class="button-row"><button class="button" data-action="start-exam">Start exam</button></div>';
+    body += '<div class="button-row"><button class="button" data-action="start-exam">Start exam</button>' +
+      (scenarioExam ? '<button class="button secondary" data-action="start-exam-scenarios">Start scenario exam</button>' : "") + "</div>";
   } else {
     body += '<p class="round-summary short">Not available yet: this catalog needs at least ' + EXAM.QUESTIONS +
       " questions with enough in every domain (" + escapeHtml(availability.shortages.join("; ")) + ").</p>" +
@@ -300,6 +322,16 @@ function renderMistakesHint(count) {
     "Mistakes are the questions in box 1: answered wrong, or rated Hard. They leave it when you answer them right and rate them Good or Easy.</p>";
 }
 
+// Button for a round from the weak domains only (only for catalogs with more than one domain)
+function renderWeakBlock(weakDomains) {
+  const count = weakDomains.length;
+  return '<div class="button-row"><button class="button secondary" data-action="start-weak"' + (count === 0 ? " disabled" : "") + ">Practice weak domains" +
+    (count ? " (" + weakDomains.map(function (item) { return item.domain; }).join(", ") + ")" : "") + "</button></div>" +
+    '<p class="hint">' + (count === 0 ? "No weak areas yet. " : "") +
+    "A round with questions only from the domains where your last answers are below " + CONFIG.WEAK_THRESHOLD +
+    " % (at least " + CONFIG.MIN_ANSWERS + " answers in the domain).</p>";
+}
+
 function renderFixedRoundScreen(catalog, stats, hasPausedRun, repeatWrong, mistakeCount) {
   const count = catalog.questions.length;
   return '<section class="screen">' + renderBackLink("Catalogs") +
@@ -315,6 +347,13 @@ function renderFixedRoundScreen(catalog, stats, hasPausedRun, repeatWrong, mista
     "</section>";
 }
 
+// Scenarios that at least one question of the catalog belongs to
+function scenariosInCatalog(catalog) {
+  return (catalog.scenarios || []).filter(function (scenario) {
+    return catalog.questions.some(function (question) { return question.scenario === scenario.id; });
+  });
+}
+
 function renderCatalogScreen(catalog, setup, availableCount, stats, hasPausedRun, availability, examRemainingMs, examPaused, mistakeCount) {
   const repeatWrong = repeatWrongEnabled(setup, catalog);
   if (catalog.fixedRound) return renderFixedRoundScreen(catalog, stats, hasPausedRun, repeatWrong, mistakeCount);
@@ -326,6 +365,12 @@ function renderCatalogScreen(catalog, setup, availableCount, stats, hasPausedRun
     domainsInCatalog.map(function (domain) {
       return renderChoice(domain, domain, setup.domain === domain, "set-domain");
     }).join("");
+
+  const scenarios = scenariosInCatalog(catalog);
+  const scenarioChoices = scenarios.map(function (scenario, index) {
+    return renderChoice("S" + (index + 1), SCENARIO_PREFIX + scenario.id, setup.domain === SCENARIO_PREFIX + scenario.id, "set-domain");
+  }).join("");
+  const chosenScenario = scenarios.find(function (scenario) { return SCENARIO_PREFIX + scenario.id === setup.domain; });
 
   const roundSize = Math.min(setup.length, availableCount);
   const shorter = availableCount < setup.length;
@@ -339,7 +384,13 @@ function renderCatalogScreen(catalog, setup, availableCount, stats, hasPausedRun
     "<h2>Questions per round</h2>" +
     '<div class="choice-group" role="group" aria-label="Questions per round">' + lengthChoices + "</div>" +
     (domainsInCatalog.length > 1
-      ? "<h2>Domain</h2>" + '<div class="choice-group" role="group" aria-label="Domain filter">' + domainChoices + "</div>"
+      ? "<h2>Domain</h2>" + '<div class="choice-group" role="group" aria-label="Domain filter">' + domainChoices + "</div>" +
+        (DOMAIN_NAMES[setup.domain] ? '<p class="hint"><strong>' + escapeHtml(DOMAIN_NAMES[setup.domain]) + "</strong></p>" : "")
+      : "") +
+    (scenarios.length > 1
+      ? "<h2>Scenario</h2>" + '<div class="choice-group" role="group" aria-label="Scenario filter">' + scenarioChoices + "</div>" +
+        (chosenScenario ? '<p class="hint"><strong>' + escapeHtml(chosenScenario.title) + "</strong></p>" : "") +
+        '<p class="hint choice-note">A round uses one focus: all questions, one domain or one scenario. Choosing one clears the other.</p>'
       : "") +
     renderRepeatSwitch(repeatWrong) +
     '<p class="round-summary' + (shorter ? " short" : "") + '">' + summary + "</p>" +
@@ -347,9 +398,10 @@ function renderCatalogScreen(catalog, setup, availableCount, stats, hasPausedRun
     '<div class="button-row"><button class="button" data-action="start-round"' + (roundSize === 0 ? " disabled" : "") + ">Start round</button>" +
     renderMistakesButton(mistakeCount) + "</div>" +
     renderMistakesHint(mistakeCount) +
+    (domainsInCatalog.length > 1 ? renderWeakBlock(stats.weakDomains) : "") +
     "</div><div>" +
-    (catalog.noExam ? "" : renderExamSetup(availability, examRemainingMs, examPaused)) +
-    renderDomainStatus(stats.domains) + "</div></div>" +
+    (catalog.noExam ? "" : renderExamSetup(catalog, availability, examRemainingMs, examPaused)) +
+    renderDomainStatus(stats.domains) + renderStatementStatus(stats.statements) + "</div></div>" +
     '<div class="button-row danger-zone"><button class="button ghost danger" data-action="reset-progress">Reset progress</button></div>' +
     "</section>";
 }
@@ -405,7 +457,7 @@ function renderOption(option, index, answer, pending, required) {
     (note ? '<span class="option-note">' + note + "</span>" : "") + "</span></button>";
 }
 
-const RATING_LABELS = { again: "Again", hard: "Hard", good: "Good", easy: "Easy" };
+const RATING_LABELS = { again: "Again", guessed: "Guessed", hard: "Hard", good: "Good", easy: "Easy" };
 
 // "Report a problem": lets the learner flag a question they doubt, with a short note
 function renderFlagBox(flagInfo) {
@@ -463,7 +515,7 @@ function renderActionBar(round, pending) {
   let main;
   if (needsRating(round, index)) {
     main = '<div class="rating-group"><p class="rating-prompt">How well did you know it?</p><div class="rating-buttons">' +
-      renderRatingButton("hard", "same box") + renderRatingButton("good", "+1 box") + renderRatingButton("easy", "+2 boxes") +
+      renderRatingButton("guessed", "box 1") + renderRatingButton("hard", "same box") + renderRatingButton("good", "+1 box") + renderRatingButton("easy", "+2 boxes") +
       "</div></div>";
   } else if (!isAnswered(round, index) && isMultipleResponse(round.questions[index])) {
     main = '<button class="button" data-action="check-answer"' +
@@ -478,7 +530,7 @@ function renderActionBar(round, pending) {
 
 // Shown only with a mouse or keyboard (hidden on touch screens by CSS)
 function renderKeyboardHint(isRating) {
-  return '<p class="kbd-hint">Keyboard: ' + (isRating ? "1 Hard · 2 Good · 3 Easy" : "A–D choose") + " · Enter continue · ← → navigate</p>";
+  return '<p class="kbd-hint">Keyboard: ' + (isRating ? "1 Guessed · 2 Hard · 3 Good · 4 Easy" : "A–D choose") + " · Enter continue · ← → navigate</p>";
 }
 
 function renderQuestion(round, isFresh, pendingSelection, flagInfo) {
@@ -563,7 +615,7 @@ function renderResults(round, results, boxes, stats) {
   return '<section class="screen">' +
     '<div class="result-hero">' + renderScoreRing(results.percent) +
     "<div><h1>" + escapeHtml(round.catalog.title) + "</h1>" +
-    "<p>" + results.correct + " correct, " + results.wrong + " wrong<br>" + results.total + " questions</p>" +
+    "<p>" + results.correct + " correct, " + results.wrong + " wrong" + (results.guessed ? ", " + results.guessed + " guessed" : "") + "<br>" + results.total + " questions</p>" +
     '<div class="button-row">' +
     '<button class="button" data-action="restart">Next round</button>' +
     '<button class="button secondary" data-action="home">Back to catalogs</button></div></div></div>' +
@@ -572,7 +624,7 @@ function renderResults(round, results, boxes, stats) {
     '<ul class="domain-list">' + domainRows + "</ul>" +
     "<h2>Where your questions are now</h2>" +
     '<ul class="box-list">' + boxChips + "</ul>" +
-    '<p class="hint">Ratings this round: Again ' + ratings.again + " · Hard " + ratings.hard + " · Good " + ratings.good + " · Easy " + ratings.easy + "</p>" +
+    '<p class="hint">Ratings this round: Again ' + ratings.again + " · Guessed " + ratings.guessed + " · Hard " + ratings.hard + " · Good " + ratings.good + " · Easy " + ratings.easy + "</p>" +
     "<h2>Weak areas</h2>" + weak +
     "</div><div>" +
     "<h2>Review wrong answers</h2>" +

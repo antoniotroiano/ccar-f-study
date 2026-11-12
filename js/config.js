@@ -21,7 +21,18 @@ const CONFIG = {
 };
 
 const DOMAINS = ["D1", "D2", "D3", "D4", "D5"];
-const RATINGS = ["again", "hard", "good", "easy"];
+// Names as in the Exam Guide v1.0, section 4 (also in data/core-domains.js)
+const DOMAIN_NAMES = {
+  D1: "Agentic Architecture & Orchestration",
+  D2: "Tool Design & MCP Integration",
+  D3: "Claude Code Configuration & Workflows",
+  D4: "Prompt Engineering & Structured Output",
+  D5: "Context Management & Reliability"
+};
+// Task statements have few questions each, so they need fewer answers than a domain before they show a rate
+const TASK_MIN_ANSWERS = 3;
+
+const RATINGS = ["again", "guessed", "hard", "good", "easy"];
 
 /* Exam simulation */
 const EXAM = {

@@ -104,7 +104,7 @@ function catalogPromptText() {
 function renderHelp(notice) {
   const shortcuts = [
     ["A – D", "Choose an answer"],
-    ["1 / 2 / 3", "Rate Hard, Good or Easy"],
+    ["1 / 2 / 3", "Rate Guessed, Hard, Good or Easy"],
     ["Enter", "Check the answer or continue"],
     ["← / →", "Previous or next question"]
   ].map(function (row) {
@@ -124,15 +124,19 @@ function renderHelp(notice) {
     "<ul>" +
     "<li>Choose a catalog and press Learn. Pick 5, 10, 15 or 20 questions and, if you like, one domain.</li>" +
     "<li>After each answer you see why it is right or wrong and where the question comes from.</li>" +
-    "<li>A wrong answer counts as Again. After a right answer you rate it Hard, Good or Easy.</li>" +
-    "<li>Every question sits in one of five boxes. Again puts it back in box 1, Hard keeps its box, Good moves it up by one and Easy by two. The next round takes questions from low boxes first and mixes in new ones.</li>" +
+    "<li>A wrong answer counts as Again. After a right answer you rate it Guessed, Hard, Good or Easy. Guessed is for a right answer that was luck: it does not count as right in your statistics, and the question goes back to box 1.</li>" +
+    "<li>Every question sits in one of five boxes. Again and Guessed put it back in box 1, Hard keeps its box, Good moves it up by one and Easy by two. The next round takes questions from low boxes first and mixes in new ones.</li>" +
     "<li>Repeat wrong questions (switch on the catalog page, off by default): a wrong question comes back at the end of the round, up to " + CONFIG.MAX_REPEATS + " times. Repeats do not count towards your score.</li>" +
-    "<li>Practice my mistakes (button on the catalog page) starts a round with only the questions in box 1, which means answered wrong or rated Hard. A question leaves box 1 when you answer it right and rate it Good or Easy.</li>" +
+    "<li>Practice my mistakes (button on the catalog page) starts a round with only the questions in box 1, which means answered wrong, guessed or rated Hard. A question leaves box 1 when you answer it right and rate it Good or Easy.</li>" +
+    "<li>Scenario (catalog page, under Domain) starts a round with only the questions of one of the six scenarios of the Exam Guide. The real exam picks 4 of the 6 at random, so practise all of them. Domain and scenario are one choice: picking one clears the other.</li>" +
+    "<li>By task statement (catalog page, under your domains) shows the rate for each of the 30 task statements of the Exam Guide, from " + TASK_MIN_ANSWERS + " answers. Every task statement has only a few questions, so one wrong answer moves the value a lot.</li>" +
+    "<li>Practice weak domains (catalog page, catalogs with more than one domain) starts a round with questions only from the domains marked weak: below " + CONFIG.WEAK_THRESHOLD + " % over your last answers, with at least " + CONFIG.MIN_ANSWERS + " answers. The button is grey while no domain is weak.</li>" +
     "<li>Pause saves your round. You can resume it later, also after closing the page. The grid button next to the counter opens the overview of the round.</li>" +
     "</ul>" +
 
     "<h2>Exam simulation</h2>" +
     "<p>Catalogs with enough questions offer an exam: " + EXAM.QUESTIONS + " questions in " + EXAM.MINUTES + " minutes, drawn by domain weight as in the Exam Guide, without feedback until you submit. You can go back, change answers, mark questions and pause (the real exam cannot be paused). When time runs out, the exam is submitted automatically. Wrong answers go to box 1.</p>" +
+    "<p>The <strong>scenario exam</strong> works like the real one: it picks " + EXAM_SCENARIO_COUNT + " of the scenarios at random and draws all questions from them. The split by domain follows the weights as far as the chosen scenarios have enough questions of a domain, so it can differ from the normal exam.</p>" +
     '<p class="hint">The pass line of ' + EXAM.PASS_PERCENT + " % is only an approximation of the real score of 720 out of 1000 points.</p>" +
 
     "<h2>Statistics and weak areas</h2>" +

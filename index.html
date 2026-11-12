@@ -15,7 +15,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <!-- Apply the saved theme before the first paint (same key as KEY_THEME in js/storage.js) -->
   <script>try { if (localStorage.getItem("ccarf.theme.v1") === "dark") document.documentElement.dataset.theme = "dark"; } catch (error) { /* light theme */ }</script>
-  <link rel="stylesheet" href="css/styles.css?v=1.0.0">
+  <link rel="stylesheet" href="css/styles.css?v=0.1.0">
 </head>
 <body>
   <header class="site-bar">
@@ -42,27 +42,28 @@
   <noscript><p class="notice">This app needs JavaScript.</p></noscript>
 
   <!-- Catalogs: to add a catalog, create a file in data/ and add one script tag here.
-       ?v=1.0.0 forces browsers to load changed files; raise the date after each update. -->
-  <script src="data/core/catalog.js?v=1.0.0"></script>
-  <script src="data/core/d1.js?v=1.0.0"></script>
-  <script src="data/core/d2.js?v=1.0.0"></script>
-  <script src="data/core/d3.js?v=1.0.0"></script>
-  <script src="data/core/d4.js?v=1.0.0"></script>
-  <script src="data/core/d5.js?v=1.0.0"></script>
-  <script src="data/core-domains.js?v=1.0.0"></script>
-  <script src="data/exam-guide-samples.js?v=1.0.0"></script>
+       ?v=0.1.0 forces browsers to load changed files; the number is raised for each release (tools/bump-version.js). -->
+  <script src="data/core/catalog.js?v=0.1.0"></script>
+  <script src="data/core/d1.js?v=0.1.0"></script>
+  <script src="data/core/d2.js?v=0.1.0"></script>
+  <script src="data/core/d3.js?v=0.1.0"></script>
+  <script src="data/core/d4.js?v=0.1.0"></script>
+  <script src="data/core/d5.js?v=0.1.0"></script>
+  <script src="data/core-domains.js?v=0.1.0"></script>
+  <script src="data/exam-guide-samples.js?v=0.1.0"></script>
+  <script src="data/task-statements.js?v=0.1.0"></script>
 
-  <script src="js/version.js?v=1.0.0"></script>
-  <script src="js/config.js?v=1.0.0"></script>
-  <script src="js/quiz.js?v=1.0.0"></script>
-  <script src="js/storage.js?v=1.0.0"></script>
-  <script src="js/learning.js?v=1.0.0"></script>
-  <script src="js/catalog-import.js?v=1.0.0"></script>
-  <script src="js/stats.js?v=1.0.0"></script>
-  <script src="js/exam.js?v=1.0.0"></script>
-  <script src="js/backup.js?v=1.0.0"></script>
-  <script src="js/help.js?v=1.0.0"></script>
-  <script src="js/render.js?v=1.0.0"></script>
-  <script src="js/app.js?v=1.0.0"></script>
+  <script src="js/version.js?v=0.1.0"></script>
+  <script src="js/config.js?v=0.1.0"></script>
+  <script src="js/quiz.js?v=0.1.0"></script>
+  <script src="js/storage.js?v=0.1.0"></script>
+  <script src="js/learning.js?v=0.1.0"></script>
+  <script src="js/catalog-import.js?v=0.1.0"></script>
+  <script src="js/stats.js?v=0.1.0"></script>
+  <script src="js/exam.js?v=0.1.0"></script>
+  <script src="js/backup.js?v=0.1.0"></script>
+  <script src="js/help.js?v=0.1.0"></script>
+  <script src="js/render.js?v=0.1.0"></script>
+  <script src="js/app.js?v=0.1.0"></script>
 </body>
 </html>
