@@ -1,33 +1,12 @@
 # CCAR-F Study
 
-A practice app for the **Claude Certified Architect – Foundations (CCAR-F)** exam. Learn in short rounds, see an explanation after every answer, and let the app remember which questions you find hard. It runs in the browser on phone and desktop, needs no server and no account, and can be installed like an app.
+A practice app for the **Claude Certified Architect – Foundations (CCAR-F)** exam. Short learning rounds, an explanation after every answer, and the app remembers which questions you find hard. Runs in the browser on phone and desktop, needs no server and no account.
 
-> **Unofficial.** This is a community learning aid. It is not affiliated with, endorsed by or sponsored by Anthropic. Questions can contain mistakes: check anything you doubt against the official Exam Guide and documentation. The ready indicator and the pass line are only guides, not a promise for the real exam.
-
-## Features
-
-- **Learning rounds** of 5, 10, 15 or 20 questions, with the reason why an answer is right or wrong and where the question comes from.
-- **Five boxes** (Leitner system): rate every right answer Guessed, Unsure or Sure. Wrong and guessed answers go back to box 1. Low boxes come first in the next round.
-- **Practice my mistakes:** a round with only the questions in box 1: wrong, guessed, or right but rated Unsure on the first try.
-- **Rounds by scenario:** practise one of the six exam scenarios, with the full scenario text from the Exam Guide.
-- A **20-question diagnostic** (button on the start page) that shows a result card per domain, marks where to start, saves the last result so you can look at it again, and can be taken again.
-- **Exam modes:** 120 minutes, no time limit, or review mode (check each answer and read the explanation as you go). Timed exams show your pace.
-- **Study notes:** short notes for all 30 task statements with links to the docs, exam traps, "which one when" tables, a Practice button and a build-it-once checklist. Written by AI from the docs of 20 Oct 2026, not independently reviewed.
-- **Search and note links:** a search over the study notes and the question explanations. Wrong answers in a result, and every task statement in the statistics, link to the matching study note.
-- **Exam date:** set the day of your exam under "More" on the start page, and a small line at the top counts the days. Nothing shows until you set a date. It stays on the device (not in the backup).
-- **Practice weak domains:** a round with questions only from the domains where your recent answers are below 70 %.
-- **Repeat wrong questions** (optional switch per catalog): a wrong question comes back at the end of the round, up to 3 times.
-- **Exam simulation:** 60 questions in 120 minutes, drawn by domain weight, no feedback until you submit. A second variant, the **scenario exam**, works like the real one: it picks 4 of the 6 scenarios at random and draws all questions from them. Mark questions, jump back, pause, automatic submit when time runs out.
-- **Statistics:** rate for the last 100 answers and for all answers, rate per domain, rate per task statement of the Exam Guide (30), weak areas, coverage, recent rounds and exams, and a ready indicator.
-- **Select 2 questions**, scenarios, sources with quotes, and a "Report a problem" note on every question.
-- **Your own catalogs:** import them from a JSON file. The Help page has a template and a prompt for an AI.
-- **Backup:** export your progress to a file and merge it back in on another device.
-- **Back and Forward** of the browser (and the swipe gesture on a phone) step through the screens. Back from a running round or exam asks first and then pauses it.
-- Light and dark theme, keyboard shortcuts on the desktop, installable, works offline.
+> **Unofficial.** A community learning aid, not affiliated with, endorsed by or sponsored by Anthropic. The questions were drafted by AI and can contain mistakes: check anything you doubt against the official Exam Guide and documentation. The ready indicator and the pass line are only guides, not a promise for the real exam.
 
 ## Use it
 
-The app is a static website. Open the published address, or install it:
+Open **https://antoniotroiano.github.io/ccar-f-study/** in a browser. To install it like an app:
 
 - **iPhone (Safari):** Share, then Add to Home Screen.
 - **Android (Chrome):** menu, then Install app.
@@ -35,107 +14,31 @@ The app is a static website. Open the published address, or install it:
 
 An installed app on the iPhone has its own storage, separate from Safari. Use **Export progress** and **Restore from backup** to move your progress into it.
 
-Live address: `https://antoniotroiano.github.io/ccar-f-study/`
-
 ## Run it locally
 
-No build step. Open `index.html` in a browser, or serve the folder:
+Clone or download the repository, then double-click `index.html`. That is all: no build step, no server, no installation. Opened from a file, the app works but cannot be installed and has no offline mode (those need the web address above or `localhost`).
 
-```bash
-python3 -m http.server 8000
-# then open http://localhost:8000
-```
+## What it does
 
-Offline use and installation need `https` or `localhost`. Opened from a file, the app works but is not installable.
+- **Learning rounds** of 5 to 20 questions with the reason why an answer is right or wrong. You rate each right answer Guessed, Unsure or Sure, and five boxes (Leitner system) bring weak questions back.
+- **Practice my mistakes, weak domains, one scenario or one task statement.**
+- **Diagnostic:** 20 questions that show which domains to practise first.
+- **Exam simulation:** 60 questions in 120 minutes, or without a time limit, or with an explanation after each answer. A scenario exam picks 4 of the 6 scenarios like the real one.
+- **Study notes** for all 30 task statements, with exam traps and links to the docs (written by AI, not independently reviewed), and a **search** over notes and explanations.
+- **Statistics** per domain and task statement, weak areas and a ready indicator.
+- **Your own catalogs** from a JSON file (template and AI prompt on the Help page), **backup** of your progress to a file, light and dark theme, works offline once installed.
 
-## Catalogs
-
-| Catalog | What it is |
-|---|---|
-| Core catalog | Exam-style questions drafted by AI against the task statements of the official Exam Guide. A script checks each source quote, but the questions are not independently reviewed. Each question names its source with a verbatim quote. |
-| One catalog per domain | The questions of the core catalog split by exam domain. They share progress with the core catalog. |
-| Exam Guide sample questions | The twelve sample questions of section 9 of the Exam Guide, with the guide's explanations. See *Content and rights*. |
-| Imported catalogs | Your own, from a JSON file. Stored in your browser only. |
-
-### Write your own catalog
-
-1. Open **Help** in the app. Download the template, or copy the prompt and give it to an AI together with your material.
-2. Read the questions the AI wrote. It can make mistakes.
-3. Save the result as `.json` and press **Import catalog** on the start page.
-
-You can check a file before the import:
-
-```bash
-node tools/validate-catalog.js my-catalog.json
-```
-
-### Add a built-in catalog
-
-Create a `.js` file in `data/` that pushes a catalog object onto `window.CATALOGS` (see `data/exam-guide-samples.js`), and add one script tag for it in `index.html`.
+The full description is on the Help page inside the app.
 
 ## Your data
 
-Everything stays in your browser. Nothing is sent to a server. Progress, answers, rounds, exams, the last diagnostic result and reports live in the browser's local storage, separately on every device and browser.
-
-- A **new version of the app does not delete your progress.** The version only changes the app's files.
-- Progress belongs to a question by its catalog id and question id. If an id changes, the progress for that question is lost. Never change ids of published questions.
-- Clearing the browser data, using another address (for example after renaming the repository) or a private window starts with empty data.
-- **Export progress** (bottom of the start page) saves a copy. **Restore from backup** merges it in: for a question that exists in both, the box of the newer answer is kept and the answers counted on each device are added up. Restoring the same file again does not count anything twice, and nothing is deleted.
-
-## Project structure
-
-```
-index.html            start page and script tags
-css/styles.css        design (light and dark theme)
-js/                   the app, no framework
-  version.js          the version number (one place)
-  quiz.js learning.js exam.js stats.js    rounds, boxes, exam, statistics
-  storage.js backup.js catalog-import.js  saved data, backup, catalog import
-  search.js                               search over study notes and questions
-  render.js app.js help.js                screens, flow, help page
-data/                 catalogs (core catalog, per-domain catalogs, sample questions)
-tools/                check and release helpers (Node, no dependencies)
-  bump-version.js  release-notes.js       version number, text for the GitHub release
-  check-catalog.js validate-catalog.js    catalog checks
-sw.js manifest.webmanifest icons/         offline use and installation
-CHANGELOG.md          what changed in each version
-```
-
-## Development
-
-No dependencies and no build step. The checks run with plain Node:
-
-```bash
-node tools/validate-catalog.js file.json        # check a catalog file
-node tools/check-catalog.js data/core           # check the core catalog: structure and verbatim quotes
-node tools/bump-version.js patch                # raise the version before a release
-node tools/release-notes.js                     # print the changelog entry for the GitHub release
-```
-
-`check-catalog.js` compares quotes with the text of the Exam Guide and the cached documentation pages. These source files are not part of this repository, so the check needs them locally in `docs/official/`.
-
-### Release
-
-Versions follow `major.minor.patch`. While the version starts with `0.`, the app is in its early phase: `minor` for new features, `patch` for fixes and new questions. `1.0.0` is for the first version you consider stable, ideally after other people have tried it. After that: `major` for changes that break saved data, `minor` for new features, `patch` for fixes and new questions.
-
-Every version gets a GitHub release, created by hand:
-
-1. `node tools/bump-version.js minor` (or `patch`, `major`). This changes `js/version.js` and the `?v=` numbers in `index.html`.
-2. Add an entry for the new version at the top of `CHANGELOG.md`.
-3. Test locally (`python3 -m http.server 8000`), then commit and push to `main`.
-4. On GitHub: Releases, Draft a new release. Create the tag `v<version>` (for example `v0.1.0`) on `main`, use the title and text from `node tools/release-notes.js`, and publish.
-
-Open pages show a **Reload** button when a new version is ready. Always raise the version before you publish changed files: the version in the file links is what makes browsers fetch the new files. If you test locally and still see an old state, reload the page twice (or once with Cmd/Ctrl + Shift + R).
-
-### Publish on GitHub Pages
-
-In the repository: Settings, Pages, Source "Deploy from a branch", branch `main`, folder `/ (root)`. The address is `https://<user>.github.io/<repository>/`. All paths in the app are relative, so it also works in a sub folder. The file `.nojekyll` keeps GitHub from processing the files.
+Everything stays in your browser. Nothing is sent to a server. Progress is separate on every device and browser, so use **Export progress** (bottom of the start page) and **Restore from backup** to move it or keep a copy. A restore merges and deletes nothing. A new version of the app never deletes your progress. Clearing the browser data, a private window or a different web address starts with empty data.
 
 ## Content and rights
 
-- The questions of the core catalog were written with AI support. They quote short passages of the official Exam Guide as sources. They are not copies of real exam questions.
-- `data/exam-guide-samples.js` contains the twelve sample questions that are printed in the Exam Guide. Their rights belong to Anthropic. If you do not want to ship them, delete the file and its script tag in `index.html`.
-- The official Exam Guide, the cached documentation pages and personal score reports are not part of this repository.
+- The core catalog was drafted by AI. It quotes short passages of the official Exam Guide as sources and is not a copy of real exam questions. A script checks the quotes, the questions are not independently reviewed.
+- `data/exam-guide-samples.js` contains the twelve sample questions printed in the Exam Guide. Their rights belong to Anthropic. To leave them out, delete the file and its script tag in `index.html`.
+- The official Exam Guide, cached documentation pages and personal score reports are not part of this repository.
 - Keep your own catalogs free of real, confidential exam content. The exam rules forbid sharing it.
 
 ## License

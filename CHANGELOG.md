@@ -32,6 +32,11 @@ New learning aids, a simpler rating and many fixes. The first version with study
 - Damaged paused rounds or exams no longer break the start page. The update check, offline cache and security settings are more robust.
 - Better contrast for button borders, larger tap areas for switches and small buttons, keyboard and screen reader improvements, and no sideways scrolling in the task statement list on a phone.
 - Backup, template and report downloads use one safer download routine.
+- After an answer the page scrolls to "Correct" / "Not quite" instead of landing in the middle of the explanation, and rating the answer no longer makes it jump.
+- The title in the top bar leads to the start page (a running round or exam is paused after a question).
+- The diagnostic result no longer offers "Next round"; pick a domain or go back to the catalogs.
+- Exam screen on a phone: the question counter and pace hint stay readable, the buttons sit on their own line.
+- Setting the exam date on a phone no longer closes the date picker or scrolls the page.
 
 **Saved data**
 - New keys in this browser: `ccarf.device.v1` (device id, not in the backup), `ccarf.diagnostic.v1` (last diagnostic result) and `ccarf.practice.v1` (ticked exercises).

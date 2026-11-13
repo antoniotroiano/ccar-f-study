@@ -112,13 +112,19 @@ function renderHelp(notice) {
   }).join("");
 
   const limits = IMPORT_LIMITS;
-  return '<section class="screen help">' + renderBackLink("Catalogs") +
-    '<h1 class="page-title">Help</h1>' +
-    (notice ? '<p class="notice" role="status">' + escapeHtml(notice) + "</p>" : "") +
-
-    "<h2>What this app does</h2>" +
+  const content = "<h2>What this app does</h2>" +
     "<p>This app helps you prepare for the Claude Certified Architect – Foundations exam. You practise in short rounds, see the explanation after every answer, and the app remembers which questions you find hard.</p>" +
     '<p class="hint">It is an unofficial learning aid and not affiliated with Anthropic. The core catalog was drafted by AI from the official Exam Guide. A script checks that each source quote appears in the guide, but the questions were not independently reviewed, so a question can still contain a mistake. Use \"Report a problem\" on a question you doubt.</p>' +
+
+    "<h2>Quick start</h2>" +
+    "<ol>" +
+    "<li>Press <strong>Practice</strong> on a catalog and start a round. After each answer you see why it is right or wrong.</li>" +
+    "<li>Rate each right answer <strong>Guessed</strong>, <strong>Unsure</strong> or <strong>Sure</strong>. Wrong and guessed questions come back.</li>" +
+    "<li>Not sure where to begin? Take the <strong>Diagnostic</strong> on the start page.</li>" +
+    "<li>Use <strong>Practice my mistakes</strong> and the <strong>Study notes</strong> to close the gaps, and try an <strong>exam simulation</strong> before the real one.</li>" +
+    "<li>Export a <strong>backup</strong> now and then (bottom of the start page).</li>" +
+    "</ol>" +
+    '<p class="hint">The sections below are folded. Tap a title to open it.</p>' +
 
     "<h2>Study notes</h2>" +
     "<p>The Study notes button on the start page opens short notes for the 30 task statements of the Exam Guide, one domain at a time. Each task statement has key points, exam traps (answers that sound right but are not), the current state of the docs where it matters, links to the docs and a Practice button for its questions. Each domain also has a \"Which one when?\" table and a Build it once checklist of small exercises. The checklist is saved in this browser.</p>" +
@@ -134,8 +140,8 @@ function renderHelp(notice) {
     "<ul>" +
     "<li>Choose a catalog and press Practice. Pick 5, 10, 15 or 20 questions and, if you like, one domain.</li>" +
     "<li>After each answer you see why it is right or wrong and where the question comes from.</li>" +
-    "<li>A wrong answer counts as Again. After a right answer you rate it Guessed, Unsure or Sure. Guessed is for a right answer that was luck: it does not count as right in your statistics, and the question goes back to box 1. Unsure means you knew most of it: it counts as right, and the question stays in its box. Sure means you knew it: it counts as right and moves up one box.</li>" +
-    "<li>Every question sits in one of five boxes. Again and Guessed put it back in box 1, Unsure keeps its box (a new question starts in box 1) and Sure moves it up by one. A question in box 4 or 5 counts as safe in the statistics. The next round takes questions from low boxes first and mixes in new ones.</li>" +
+    "<li>A wrong answer counts as Again. After a right answer you rate it: <strong>Guessed</strong> (luck: counts as wrong, back to box 1), <strong>Unsure</strong> (counts as right, keeps its box) or <strong>Sure</strong> (counts as right, up one box).</li>" +
+    "<li>There are five boxes. A new question starts in box 1, and box 4 or 5 counts as safe in the statistics. The next round takes questions from low boxes first and mixes in new ones.</li>" +
     "<li>Repeat wrong questions (switch on the catalog page, off by default): a wrong question comes back at the end of the round, up to " + CONFIG.MAX_REPEATS + " times. Repeats do not count towards your score.</li>" +
     "<li>Practice my mistakes (button on the catalog page) starts a round with only the questions in box 1: answered wrong or guessed, or right but rated Unsure on the first try. A question leaves box 1 when you answer it right and rate it Sure.</li>" +
     "<li>Scenario (catalog page, under Domain) starts a round with only the questions of one of the six scenarios of the Exam Guide. The real exam picks 4 of the 6 at random, so practise all of them. Domain and scenario are one choice: picking one clears the other.</li>" +
@@ -176,17 +182,18 @@ function renderHelp(notice) {
     '<p class="hint">The light and dark theme can be switched at the top right of every page.</p>' +
 
     "<h2>Use your own questions</h2>" +
-    "<p>You can import a catalog from a JSON file. The file is only read, nothing in it is run. It stays in this browser. Importing a catalog with the same id replaces it.</p>" +
+    "<p>Make a catalog from your own notes or material and practise it like the built-in ones. It stays in this browser.</p>" +
     "<ol>" +
-    "<li>Download the template below, or copy the prompt and give it to an AI together with your material. Check the questions it writes.</li>" +
-    "<li>Save the result as a file ending in .json.</li>" +
-    "<li>Press Import catalog on the start page and choose the file. The app checks it and names every problem it finds.</li>" +
+    "<li>Download the template, or copy the prompt and give it to an AI together with your material.</li>" +
+    "<li>Read the questions it wrote, then save the result as a file ending in .json.</li>" +
+    "<li>Press <strong>Import catalog</strong> on the start page and choose the file. The app checks it and names every problem.</li>" +
     "</ol>" +
     '<div class="button-row">' +
     '<button class="button" data-action="download-template">Download template (JSON)</button>' +
     '<button class="button secondary" data-action="copy-prompt">Copy prompt for an AI</button>' +
     "</div>" +
-    '<p class="hint"><strong>Copy prompt for an AI</strong> puts a ready-made instruction on your clipboard. Paste it into an AI chat (for example Claude) and replace three things in it: <code>[LANGUAGE]</code> (the language of the questions), <code>[NUMBER]</code> (how many questions) and <code>[PASTE YOUR MATERIAL HERE]</code> at the end (your text or notes). The AI then answers with the JSON file. If the button does not work, the same prompt is shown in a box further down on this page: select the text and copy it by hand.</p>' +
+    '<p class="hint">In the prompt, replace <code>[LANGUAGE]</code>, <code>[NUMBER]</code> and the material at the end. An AI can make mistakes, so always read the questions before you use them. If Copy does not work, open the box below and copy the prompt by hand. The file is only read, nothing in it is run.</p>' +
+    '<details class="help-sub"><summary>File format and prompt text</summary>' +
     "<h3>Fields</h3>" +
     '<table class="help-table fields"><thead><tr><th>Field</th><th>Needed</th><th>Meaning</th></tr></thead><tbody>' +
     "<tr><th scope=\"row\">id</th><td>yes</td><td>Letters, digits, - and _. It never changes. Progress is stored under it.</td></tr>" +
@@ -205,10 +212,24 @@ function renderHelp(notice) {
     "</tbody></table>" +
     '<p class="hint">Limits: file up to ' + Math.round(limits.MAX_FILE_BYTES / 1048576) + " MB, up to " + limits.MAX_QUESTIONS + " questions per catalog. Browsers store about 5 MB per site, so very large catalogs may not fit.</p>" +
     "<h3>The prompt</h3>" +
-    '<p class="hint">Replace [LANGUAGE], [NUMBER] and the material at the end. Always read the questions before you use them: an AI can make mistakes.</p>' +
     '<pre class="code-block" tabindex="0">' + escapeHtml(catalogPromptText()) + "</pre>" +
     '<div class="button-row"><button class="button secondary" data-action="copy-prompt">Copy prompt for an AI</button></div>' +
+    "</details>" +
     "<h2>About</h2>" +
-    "<p>CCAR-F Study, version " + APP_VERSION + " (" + APP_BUILD_DATE + "). When a new version is published, the app shows a Reload button at the top. Your progress is kept.</p>" +
-    "</section>";
+    "<p>CCAR-F Study, version " + APP_VERSION + " (" + APP_BUILD_DATE + "). When a new version is published, the app shows a Reload button at the top. Your progress is kept.</p>";
+
+  return '<section class="screen help">' + renderBackLink("Catalogs") +
+    '<h1 class="page-title">Help</h1>' +
+    (notice ? '<p class="notice" role="status">' + escapeHtml(notice) + "</p>" : "") +
+    foldHelpSections(content, 2) + "</section>";
+}
+
+/* Every <h2> section after the first `open` ones becomes a folded block, so the page is a list of titles. */
+function foldHelpSections(html, open) {
+  let count = 0;
+  return html.replace(/<h2>([^<]*)<\/h2>([\s\S]*?)(?=<h2>|$)/g, function (match, title, body) {
+    count += 1;
+    if (count <= open) return match;
+    return '<details class="help-section"><summary><h2>' + title + "</h2></summary>" + body + "</details>";
+  });
 }

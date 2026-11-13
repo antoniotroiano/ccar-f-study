@@ -30,3 +30,4 @@ No test framework. Check syntax with `node --check js/*.js`, the catalog with `n
 
 ## Release
 Version in `js/version.js`, raised with `node tools/bump-version.js minor|patch`. Version `0.x` means early phase. Add a `CHANGELOG.md` entry, then the user commits and creates the GitHub release by hand (`node tools/release-notes.js` prints the text). Do not raise the version on your own while a release is still unpublished: collect changes in the open changelog entry.
+Hosting is GitHub Pages (branch `main`, folder `/ (root)`). All paths are relative, `.nojekyll` stays. A built-in catalog is a `.js` file in `data/` that pushes onto `window.CATALOGS`, plus a script tag in `index.html`. The README has no development section on purpose: only the author works on this.

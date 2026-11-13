@@ -287,8 +287,22 @@ appElement.addEventListener("change", function (event) {
     return;
   }
   saveSettings(setup);
-  showCatalogList();
+  updateExamDateInPlace();
 });
+
+// The start page is not drawn again: on a phone that closed the date picker and scrolled to the top.
+function updateExamDateInPlace() {
+  const html = renderExamCounter({ date: setup.examDate, days: daysToExam(setup.examDate, Date.now()), today: localDateString(Date.now()) });
+  const counter = appElement.querySelector(".exam-counter");
+  const subtitle = appElement.querySelector(".home-subtitle");
+  if (counter && html) counter.outerHTML = html;
+  else if (counter) counter.remove();
+  else if (html && subtitle) subtitle.insertAdjacentHTML("afterend", html);
+  const box = appElement.querySelector(".exam-date");
+  const remove = box && box.querySelector('[data-action="clear-exam-date"]');
+  if (box && setup.examDate && !remove) box.insertAdjacentHTML("beforeend", '<button class="button ghost" data-action="clear-exam-date">Remove</button>');
+  if (remove && !setup.examDate) remove.remove();
+}
 
 function showStats(keepScroll) {
   if (!keepScroll) track({ s: "stats" });
@@ -356,11 +370,27 @@ function currentFlagInfo() {
   return { flag: flagFor(dataId(currentRound.catalog), question.id), isEditing: isEditingFlag, checkFirst: setup.checkFirst };
 }
 
-function showQuestion(isFresh) {
-  show(renderQuestion(currentRound, Boolean(isFresh), pendingSelection, currentFlagInfo()), isFresh);
+/* Brings the verdict ("Correct" / "Not quite") into view just under the fixed bars, so the explanation below it
+   reads from the top. Does nothing when the verdict is already fully visible (short questions). */
+function scrollVerdictIntoView(feedback) {
+  const verdict = feedback.querySelector(".verdict") || feedback;
+  const topbar = document.querySelector(".topbar");
+  const siteBar = document.querySelector(".site-bar");
+  const actionBar = document.querySelector(".action-bar");
+  const top = Math.max(topbar ? topbar.getBoundingClientRect().bottom : 0, siteBar ? siteBar.getBoundingClientRect().bottom : 0);
+  const bottom = actionBar ? actionBar.getBoundingClientRect().top : window.innerHeight;
+  const rect = verdict.getBoundingClientRect();
+  if (rect.top >= top && rect.bottom <= bottom) return;
+  window.scrollTo(0, window.scrollY + rect.top - top - 16);
+}
+
+// isFresh: an answer was just given (scroll to the verdict, announce it).
+// afterRating: the rating was just chosen. The screen is drawn again in place, without a jump or a second announcement.
+function showQuestion(isFresh, afterRating) {
+  show(renderQuestion(currentRound, Boolean(isFresh), pendingSelection, currentFlagInfo()), isFresh || afterRating);
   if (isFresh) {
     const feedback = document.getElementById("feedback");
-    feedback.scrollIntoView({ block: "nearest" });
+    scrollVerdictIntoView(feedback);
     feedback.focus({ preventScroll: true });
     const answer = currentRound.answers[currentRound.currentIndex];
     announce(answer.isCorrect ? "Correct." : "Not quite.");
@@ -420,7 +450,7 @@ function handleRating(rating) {
   if (!needsRating(currentRound, index)) return;
   rateAnswer(currentRound, index, rating);
   const stored = applyCompletion(currentRound, index) && saveRun(currentRound);
-  showQuestion(true);
+  showQuestion(false, true);
   if (!stored) showSaveError();
 }
 
@@ -757,8 +787,7 @@ appElement.addEventListener("click", function (event) {
       pauseRound();
       break;
     case "restart":
-      if (currentRound.mode === "diagnostic") startRound(currentRound.catalog, "all", setup.length); // after the diagnostic: a normal round
-      else startRound(currentRound.catalog, currentRound.domainFilter, currentRound.requestedLength, currentRound.mode);
+      startRound(currentRound.catalog, currentRound.domainFilter, currentRound.requestedLength, currentRound.mode);
       break;
     case "home":
       showCatalogList();
@@ -948,6 +977,17 @@ function showHelp() {
 
 document.getElementById("help-link").addEventListener("click", showHelp);
 document.getElementById("search-link").addEventListener("click", showSearch);
+
+// The title in the top bar leads to the start page. A running round or exam is paused first, after a question.
+document.getElementById("brand-link").addEventListener("click", function () {
+  if (runActive) {
+    const what = currentExam ? "exam" : "round";
+    if (!window.confirm("Leave the " + what + "? It is saved and paused. Resume it from the start page.")) return;
+    showCatalogList(pauseRunForBack());
+    return;
+  }
+  showCatalogList();
+});
 
 // Clipboard API first. If the browser refuses (for example on a page opened from a file), fall back to a temporary text field.
 function copyWithTextField(text) {

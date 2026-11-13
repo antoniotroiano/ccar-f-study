@@ -237,11 +237,10 @@ function renderCatalogList(entries, notice, report, backupInfo, examInfo) {
 
   return '<section class="screen">' +
     '<div class="home-head"><div><h1 class="home-title">CCAR-F Study</h1>' +
-    '<p class="home-subtitle">Learn in short rounds. Your progress is saved in this browser.</p></div>' +
+    '<p class="home-subtitle">Learn in short rounds. Your progress is saved in this browser.</p>' + renderExamCounter(examInfo) + '</div>' +
     '<div class="home-buttons"><button class="button secondary" data-action="learn">Study notes</button>' +
     (entries.some(canDiagnose) ? '<button class="button secondary" data-action="diagnostic">Diagnostic</button>' : "") +
     '<button class="button secondary" data-action="stats">Statistics</button></div></div>' +
-    renderExamCounter(examInfo) +
     renderImportReport(report) +
     (notice ? '<p class="notice" role="status">' + escapeHtml(notice) + "</p>" : "") +
     '<div class="catalog-list">' + (cards || "<p>No catalogs found.</p>") + "</div>" +
@@ -727,8 +726,8 @@ function renderResults(round, results, boxes, stats) {
     "<div><h1>" + escapeHtml(round.catalog.title) + "</h1>" +
     "<p>" + results.correct + " correct, " + results.wrong + " wrong" + (results.guessed ? ", " + results.guessed + " guessed" : "") + "<br>" + results.total + " questions</p>" +
     '<div class="button-row">' +
-    '<button class="button" data-action="restart">Next round</button>' +
-    '<button class="button secondary" data-action="home">Back to catalogs</button></div></div></div>' +
+    (round.mode === "diagnostic" ? "" : '<button class="button" data-action="restart">Next round</button>') +
+    '<button class="button' + (round.mode === "diagnostic" ? "" : " secondary") + '" data-action="home">Back to catalogs</button></div></div></div>' +
     '<div class="two-col"><div>' +
     "<h2>By domain</h2>" +
     '<ul class="domain-list">' + domainRows + "</ul>" +
@@ -960,8 +959,8 @@ function renderExamQuestion(exam, remainingMs) {
     renderBar(percent(countExamAnswered(exam), exam.questions.length)) +
     '<span class="counter">' + (index + 1) + "/" + exam.questions.length + "</span></div>" +
     '<div class="q-layout"><div class="q-side">' +
-    '<div class="exam-meta"><span class="hint">Question ' + (index + 1) + " of " + exam.questions.length + " · " +
-    countExamAnswered(exam) + " answered</span>" + paceHint +
+    '<div class="exam-meta"><div class="exam-meta-text"><span class="hint">Question ' + (index + 1) + " of " + exam.questions.length + " · " +
+    countExamAnswered(exam) + " answered</span>" + paceHint + "</div>" +
     '<span class="meta-actions"><button class="mark-button" data-action="exam-overview">' + icon("grid") + "Overview</button>" +
     '<button class="mark-button' + (isMarked ? " on" : "") + '" data-action="exam-mark" aria-pressed="' + isMarked + '">' +
     icon("flag") + (isMarked ? "Marked" : "Mark") + "</button></span></div>" +

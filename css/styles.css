@@ -150,7 +150,7 @@ p { margin: 0; }
 }
 
 .exam-counter {
-  margin: -12px 0 20px;
+  margin: 4px 0 0;
   font-size: 0.9375rem;
   color: var(--ink-soft);
 }
@@ -872,6 +872,10 @@ p { margin: 0; }
 }
 
 .exam-meta .hint { margin: 0; }
+/* Each text stays in one piece; on a narrow screen they wrap as whole lines and the buttons go below */
+.exam-meta { flex-wrap: wrap; }
+.exam-meta-text { display: flex; flex-wrap: wrap; gap: 2px 12px; flex: 1 1 12rem; }
+.exam-meta-text .hint { white-space: nowrap; }
 
 .mark-button {
   display: inline-flex;
@@ -995,7 +999,21 @@ p { margin: 0; }
   padding: 0 16px;
 }
 
-.site-brand { font-size: 0.875rem; font-weight: 700; letter-spacing: 0.01em; }
+.site-brand {
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-align: left;
+  cursor: pointer;
+}
+.site-brand:hover { color: var(--primary); }
 
 .theme-toggle {
   display: inline-flex;
@@ -1222,6 +1240,18 @@ p { margin: 0; }
 .help ul, .help ol { padding-left: 22px; }
 .help li { margin-bottom: 6px; }
 .help h3 { margin: 24px 0 8px; font-size: 1rem; }
+.help-section { border-top: 1px solid var(--line); padding: 0 0 8px; }
+.help-section:last-of-type { border-bottom: 1px solid var(--line); }
+.help-section > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; cursor: pointer; list-style: none; }
+.help-section > summary::-webkit-details-marker { display: none; }
+.help-section > summary::after { content: "+"; flex: none; font-size: 1.25rem; font-weight: 600; color: var(--ink-soft); }
+.help-section[open] > summary::after { content: "–"; }
+.help-sub { margin: 12px 0; border: 1px solid var(--line); border-radius: var(--radius); padding: 0 14px 8px; }
+.help-sub summary { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; list-style: none; font-weight: 600; }
+.help-sub summary::-webkit-details-marker { display: none; }
+.help-sub summary::after { content: "+"; font-size: 1.25rem; color: var(--ink-soft); }
+.help-sub[open] summary::after { content: "–"; }
+.help-section > summary h2 { margin: 0; font-size: 1.0625rem; }
 
 .help-table {
   width: 100%;
@@ -1354,7 +1384,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
 .note-link { min-height: 44px; padding: 0 12px; }
 
 /* Exam modes and pace */
-.pace-hint { margin-left: 8px; }
+.pace-hint { margin-left: 0; }
 .pace-summary { margin: 16px 0; }
 
 /* Study notes */
