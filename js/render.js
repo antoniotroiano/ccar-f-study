@@ -172,14 +172,37 @@ function renderImportReport(report) {
   return html + "</div>";
 }
 
+// A diagnostic needs a source catalog with several domains (not a fixed round)
+function canDiagnose(entry) {
+  return !entry.catalog.progressId && !entry.catalog.fixedRound && entry.stats.domains.length > 1;
+}
+
+/* Exam date. The counter shows only once a date is set; the field to set it lives under "More".
+   info: { date, days, today } with days from daysToExam (null without a date). */
+function renderExamCounter(info) {
+  if (!info || info.days === null) return "";
+  let text = "Your exam date has passed";
+  if (info.days > 1) text = info.days + " days to your exam";
+  else if (info.days === 1) text = "1 day to your exam (tomorrow)";
+  else if (info.days === 0) text = "Your exam is today";
+  return '<p class="exam-counter" role="status">' + escapeHtml(text) + "</p>";
+}
+
+function renderExamDateSetting(info) {
+  if (!info) return "";
+  return '<div class="exam-date"><label class="exam-date-field"><span>Exam date</span>' +
+    '<input type="date" id="exam-date-input" value="' + escapeHtml(info.date || "") + '" min="' + escapeHtml(info.today) + '"></label>' +
+    (info.date ? '<button class="button ghost" data-action="clear-exam-date">Remove</button>' : "") + "</div>";
+}
+
 /* Catalog list (home).
    entries: [{ catalog, stats, pausedAnswered }]; pausedAnswered is null when no round is paused. */
-function renderCatalogList(entries, notice, report, backupInfo) {
+function renderCatalogList(entries, notice, report, backupInfo, examInfo) {
   const cardHtml = entries.map(function (entry, index) {
     const catalog = entry.catalog;
     const coverage = entry.stats.coverage;
     let paused = "";
-    let actions = '<button class="button" data-action="open-catalog" data-catalog-index="' + index + '">Learn</button>';
+    let actions = '<button class="button" data-action="open-catalog" data-catalog-index="' + index + '">Practice</button>';
     const removeButton = catalog.imported
       ? '<button class="button ghost" data-action="remove-imported" data-catalog-index="' + index + '">Remove</button>'
       : "";
@@ -195,7 +218,7 @@ function renderCatalogList(entries, notice, report, backupInfo) {
 
     if (entry.examRemainingMs !== null) {
       paused += '<div class="paused-run exam-running"><div class="paused-label"><span>' + (entry.examPaused ? "Exam paused" : "Exam in progress") + '</span><span>' +
-        formatDuration(entry.examRemainingMs / 1000) + " left</span></div></div>";
+        (Number.isFinite(entry.examRemainingMs) ? formatDuration(entry.examRemainingMs / 1000) + " left" : "no time limit") + "</span></div></div>";
       actions += '<button class="button" data-action="resume-exam" data-catalog-index="' + index + '">Resume exam</button>' +
         '<button class="button ghost" data-action="discard-exam" data-catalog-index="' + index + '">Discard exam</button>';
     }
@@ -210,19 +233,24 @@ function renderCatalogList(entries, notice, report, backupInfo) {
 
   // Catalogs made from another one (one per domain) are listed in their own group below the main ones
   const mainCards = cardHtml.filter(function (_, index) { return !entries[index].catalog.progressId; }).join("");
-  const domainCards = cardHtml.filter(function (_, index) { return entries[index].catalog.progressId; }).join("");
-  const cards = mainCards;
+  const cards = mainCards; // the domain catalogs stay for shared progress, but practice by domain is a filter in the round setup
 
   return '<section class="screen">' +
     '<div class="home-head"><div><h1 class="home-title">CCAR-F Study</h1>' +
     '<p class="home-subtitle">Learn in short rounds. Your progress is saved in this browser.</p></div>' +
-    '<div class="home-buttons"><button class="button secondary" data-action="import-catalog">Import catalog</button>' +
+    '<div class="home-buttons"><button class="button secondary" data-action="learn">Study notes</button>' +
+    (entries.some(canDiagnose) ? '<button class="button secondary" data-action="diagnostic">Diagnostic</button>' : "") +
     '<button class="button secondary" data-action="stats">Statistics</button></div></div>' +
+    renderExamCounter(examInfo) +
     renderImportReport(report) +
     (notice ? '<p class="notice" role="status">' + escapeHtml(notice) + "</p>" : "") +
     '<div class="catalog-list">' + (cards || "<p>No catalogs found.</p>") + "</div>" +
-    (domainCards ? "<h2 class=\"group-title\">Practice by domain</h2>" + '<div class="catalog-list">' + domainCards + "</div>" : "") +
     renderBackupSection(backupInfo) +
+    '<h2 class="group-title">More</h2>' +
+    '<p class="hint">Have your own questions? Import a catalog from a JSON file.</p>' +
+    '<div class="button-row"><button class="button secondary" data-action="import-catalog">Import catalog</button></div>' +
+    '<p class="hint">Planning an exam day? Set a date and the start page counts the days.</p>' +
+    renderExamDateSetting(examInfo) +
     '<p class="app-version">CCAR-F Study · version ' + APP_VERSION + "</p>" +
     "</section>";
 }
@@ -251,25 +279,36 @@ function renderDomainStatus(domains) {
 function renderStatementStatus(statements) {
   if (!statements.length) return "";
   const rows = statements.map(function (item) {
-    return '<li class="task-row"><span class="domain-name">' + item.id + '</span><span class="task-title">' + escapeHtml(item.title) + "</span>" +
-      '<span class="domain-score">' + (item.hasData ? item.allTime.rate + " % · " + item.allTime.total + " answers" : item.allTime.total + " answers") + "</span>" +
-      (item.hasData ? renderBar(item.allTime.rate) : '<div class="bar"></div>') + "</li>";
+    return '<li class="task-row"><span class="domain-name">' + item.id + '</span><span class="task-title">' + escapeHtml(item.title) + (item.isWeak ? " " + renderWeakBadge() : "") + "</span>" +
+      '<span class="domain-score">' + (item.hasData ? item.allTime.rate + " % · " : "") + item.allTime.total + (item.allTime.total === 1 ? " answer" : " answers") + "</span>" +
+      (item.hasData ? renderBar(item.allTime.rate) : '<div class="bar"></div>') +
+      '<span class="task-safe">' + item.safe + " of " + item.questions + " safe</span>" +
+      (noteDomainOf(item.id) ? '<button class="button ghost task-note" data-action="learn-topic" data-value="' + item.id + '" aria-label="Read the study note for task statement ' + item.id + '">Note</button>' : "") +
+      '<button class="button ghost task-practice" data-action="start-task" data-value="' + item.id + '" aria-label="Practice task statement ' + item.id + '">Practice</button></li>';
   }).join("");
   return '<details class="task-details"><summary>By task statement (' + statements.length + ")</summary>" +
     '<p class="hint">The task statements of the Exam Guide. Rate of all your answers to questions of this task statement, shown from ' +
-    TASK_MIN_ANSWERS + " answers. Every task statement has only a few questions, so treat single values with care.</p>" +
+    TASK_MIN_ANSWERS + " answers. Every task statement has only a few questions, so treat single values with care. Safe: questions in box " + CONFIG.SAFE_BOX + " or higher, which takes about three right answers in a row rated Sure.</p>" +
     '<ul class="task-list">' + rows + "</ul></details>";
 }
 
-function renderExamSetup(catalog, availability, examRemainingMs, examPaused) {
+function renderExamSetup(catalog, availability, examRemainingMs, examPaused, mode) {
   const quotas = examQuotas();
   const distribution = DOMAINS.filter(function (domain) { return quotas[domain] > 0; }).map(function (domain) {
     return domain + " " + quotas[domain];
   }).join(" · ");
 
-  let body = '<p class="hint">' + EXAM.QUESTIONS + " questions · " + EXAM.MINUTES + " minutes · no feedback until you submit. " +
-    "Answer each question before moving on. You can go back, change answers and mark questions to review them at the end. " +
-    "When time runs out, the exam is submitted automatically. You can pause the exam and the timer stops (the real exam cannot be paused).</p>" +
+  const modeChoices = [["timed", EXAM.MINUTES + " minutes"], ["untimed", "No time limit"], ["review", "Review each answer"]].map(function (item) {
+    return renderChoice(item[1], item[0], mode === item[0], "set-exam-mode");
+  }).join("");
+  const modeText = {
+    timed: "Like the real exam: " + EXAM.MINUTES + " minutes, no feedback until you submit. When time runs out, the exam is submitted automatically. You can pause the exam and the timer stops (the real exam cannot be paused).",
+    untimed: "No clock and no feedback until you submit. Good when you want to test your knowledge without time pressure. The result does not count for the ready indicator.",
+    review: "No clock. After each answer you check it and see the explanation before you move on. The answer is then final. The result does not count for the ready indicator."
+  };
+  let body = '<div class="choice-group" role="group" aria-label="Exam mode">' + modeChoices + "</div>" +
+    '<p class="hint">' + EXAM.QUESTIONS + " questions · " + modeText[mode] + "</p>" +
+    '<p class="hint">Answer each question before moving on. You can go back, change answers and mark questions to review them at the end.</p>' +
     '<p class="hint">Questions per domain: ' + distribution +
     (isExamDistributionProvisional() ? " (provisional, equal split until the Exam Guide weights are set)" : "") + ".</p>";
 
@@ -280,7 +319,7 @@ function renderExamSetup(catalog, availability, examRemainingMs, examPaused) {
   }
 
   if (examRemainingMs !== null) {
-    body += '<p class="round-summary">An exam is ' + (examPaused ? "paused" : "in progress") + ' · ' + formatDuration(examRemainingMs / 1000) + " left.</p>" +
+    body += '<p class="round-summary">An exam is ' + (examPaused ? "paused" : "in progress") + ' · ' + (Number.isFinite(examRemainingMs) ? formatDuration(examRemainingMs / 1000) + " left." : "no time limit.") + "</p>" +
       '<div class="button-row"><button class="button" data-action="resume-exam-here">Resume exam</button>' +
       '<button class="button secondary" data-action="start-exam">Start a new exam</button>' +
       (scenarioExam ? '<button class="button secondary" data-action="start-exam-scenarios">Start a new scenario exam</button>' : "") +
@@ -326,7 +365,7 @@ function renderMistakesButton(count) {
 
 function renderMistakesHint(count) {
   return '<p class="hint">' + (count === 0 ? "No mistakes yet. " : "") +
-    "Mistakes are the questions in box 1: answered wrong or guessed. They leave it when you answer them right and rate them Good or Easy.</p>";
+    "Mistakes are the questions in box 1: answered wrong or guessed, or right but rated Unsure on the first try. They leave it when you answer them right and rate them Sure.</p>";
 }
 
 // Button for a round from the weak domains only (only for catalogs with more than one domain)
@@ -388,7 +427,8 @@ function renderCatalogScreen(catalog, setup, availableCount, stats, hasPausedRun
   return '<section class="screen">' + renderBackLink("Catalogs") +
     '<h1 class="page-title">' + escapeHtml(catalog.title) + "</h1>" +
     '<div class="two-col"><div>' +
-    "<h2>Questions per round</h2>" +
+    "<h2>Round</h2>" +
+    "<h3>Questions per round</h3>" +
     '<div class="choice-group" role="group" aria-label="Questions per round">' + lengthChoices + "</div>" +
     (domainsInCatalog.length > 1
       ? "<h2>Domain</h2>" + '<div class="choice-group" role="group" aria-label="Domain filter">' + domainChoices + "</div>" +
@@ -407,7 +447,7 @@ function renderCatalogScreen(catalog, setup, availableCount, stats, hasPausedRun
     renderMistakesHint(mistakeCount) +
     (domainsInCatalog.length > 1 ? renderWeakBlock(stats.weakDomains) : "") +
     "</div><div>" +
-    (catalog.noExam ? "" : renderExamSetup(catalog, availability, examRemainingMs, examPaused)) +
+    (catalog.noExam ? "" : renderExamSetup(catalog, availability, examRemainingMs, examPaused, EXAM.MODES.indexOf(setup.examMode) !== -1 ? setup.examMode : "timed")) +
     renderDomainStatus(stats.domains) + renderStatementStatus(stats.statements) + "</div></div>" +
     '<div class="button-row danger-zone"><button class="button ghost danger" data-action="reset-progress">Reset progress</button></div>' +
     "</section>";
@@ -466,7 +506,7 @@ function renderOption(option, index, answer, pending, required) {
     (note ? '<span class="option-note">' + note + "</span>" : "") + "</span></button>";
 }
 
-const RATING_LABELS = { again: "Again", guessed: "Guessed", hard: "Hard", good: "Good", easy: "Easy" };
+const RATING_LABELS = { again: "Again", guessed: "Guessed", unsure: "Unsure", sure: "Sure" };
 
 // "Report a problem": lets the learner flag a question they doubt, with a short note
 function renderFlagBox(flagInfo) {
@@ -510,9 +550,8 @@ function renderFeedback(catalog, question, answer, isFresh, flagInfo, round) {
   return html + renderFlagBox(flagInfo) + "</section>";
 }
 
-function renderRatingButton(rating, hint) {
-  return '<button class="button rating ' + rating + '" data-action="rate" data-rating="' + rating + '">' +
-    '<span>' + RATING_LABELS[rating] + '</span><span class="rating-hint">' + hint + "</span></button>";
+function renderRatingButton(rating) {
+  return '<button class="button rating ' + rating + '" data-action="rate" data-rating="' + rating + '">' + RATING_LABELS[rating] + "</button>";
 }
 
 function renderActionBar(round, pending, checkFirst) {
@@ -524,7 +563,7 @@ function renderActionBar(round, pending, checkFirst) {
   let main;
   if (needsRating(round, index)) {
     main = '<div class="rating-group"><p class="rating-prompt">How well did you know it?</p><div class="rating-buttons">' +
-      renderRatingButton("guessed", "box 1") + renderRatingButton("hard", "same box") + renderRatingButton("good", "+1 box") + renderRatingButton("easy", "+2 boxes") +
+      renderRatingButton("guessed") + renderRatingButton("unsure") + renderRatingButton("sure") +
       "</div></div>";
   } else if (!isAnswered(round, index) && (isMultipleResponse(round.questions[index]) || checkFirst)) {
     main = '<button class="button" data-action="check-answer"' +
@@ -541,8 +580,8 @@ function renderActionBar(round, pending, checkFirst) {
 // The single-key shortcuts (letters, digits) can be switched off (WCAG 2.1.4); Enter and the arrows stay.
 function renderKeyboardHint(isRating) {
   const on = loadSettings().shortcuts;
-  const keys = on ? (isRating ? "1 Guessed · 2 Hard · 3 Good · 4 Easy" : "letters choose") + " · " : "";
-  return '<p class="kbd-hint" data-rating="' + (isRating ? "1" : "0") + '">Keyboard: ' + keys + "Enter continue · ← → navigate · " +
+  const keys = on ? (isRating ? "1 Guessed · 2 Unsure · 3 Sure" : "letters choose") + " · " : "";
+  return '<p class="kbd-hint" data-rating="' + (isRating ? "1" : "0") + '">Keyboard: ' + keys + (isRating ? "" : "Enter continue · ") + "← → navigate · " +
     '<button class="link-button" data-action="toggle-shortcuts">' + (on ? "Turn letter and digit shortcuts off" : "Turn letter and digit shortcuts on") + "</button></p>";
 }
 
@@ -578,6 +617,13 @@ function renderQuestion(round, isFresh, pendingSelection, flagInfo) {
 }
 
 /* Results screen */
+// Button to the study note of the question's task statement, or "" when there is none
+function renderNoteLink(question) {
+  const id = taskStatementOf(question);
+  if (!id || !noteDomainOf(id)) return "";
+  return '<p><button class="button ghost note-link" data-action="learn-topic" data-value="' + escapeHtml(id) + '">Read the note for ' + escapeHtml(id) + "</button></p>";
+}
+
 // selected: chosen option indexes, or null when nothing was chosen
 function renderReviewItem(catalog, question, selected) {
   const chosen = chosenOptionsOf(question, selected);
@@ -588,7 +634,7 @@ function renderReviewItem(catalog, question, selected) {
   return '<details class="review-item"><summary>' +
     '<span class="chip">' + escapeHtml(question.domain) + "</span>" +
     "<span>" + escapeHtml(question.question) + "</span></summary>" +
-    '<div class="review-body">' + note + renderAnswerExplanation(catalog, question, selected, true) + "</div></details>";
+    '<div class="review-body">' + note + renderAnswerExplanation(catalog, question, selected, true) + renderNoteLink(question) + "</div></details>";
 }
 
 function renderScoreRing(percentValue) {
@@ -599,6 +645,55 @@ function renderScoreRing(percentValue) {
     '<circle class="ring-track" cx="60" cy="60" r="52"/>' +
     '<circle class="ring-fill" cx="60" cy="60" r="52" stroke-dasharray="' + filled.toFixed(1) + " " + circumference.toFixed(1) + '"/></svg>' +
     '<span class="ring-value">' + percentValue + " %</span></div>";
+}
+
+// One card per domain from a diagnostic result: the weakest ones marked, with a Practice button each.
+// catalogIndex is set where the screen does not know the active catalog (the Diagnostic screen).
+function renderDiagnosticCards(perDomain, catalogIndex) {
+  const advice = diagnosticAdvice(perDomain);
+  const startIds = advice.start.map(function (item) { return item.domain; });
+  const indexAttr = catalogIndex === undefined ? "" : ' data-catalog-index="' + catalogIndex + '"';
+  const cards = DOMAINS.filter(function (domain) { return perDomain[domain]; }).map(function (domain) {
+    const entry = perDomain[domain];
+    const total = entry.correct + entry.wrong;
+    const rated = advice.rated.some(function (item) { return item.domain === domain; });
+    const isStart = startIds.indexOf(domain) !== -1;
+    return '<li class="diagnostic-domain' + (isStart ? " start-here" : "") + '"><div class="diagnostic-domain-head"><strong>' + domain + "</strong>" +
+      '<span class="diagnostic-domain-name">' + escapeHtml(DOMAIN_NAMES[domain] || "") + "</span>" +
+      (isStart ? '<span class="badge-start">Start here</span>' : "") + "</div>" +
+      (rated
+        ? renderBar(percent(entry.correct, total)) + '<p class="hint">' + entry.correct + "/" + total + " right · " + percent(entry.correct, total) + " %</p>"
+        : '<p class="hint">Too few answers to rate (' + total + ").</p>") +
+      '<button class="button secondary" data-action="start-domain" data-value="' + domain + '"' + indexAttr + ">Practice " + domain + "</button></li>";
+  }).join("");
+  const summary = advice.rated.length === 0 ? ""
+    : advice.start.length === 0 ? "<p>Everything was right. Try a timed exam or a scenario round next.</p>"
+    : "<p>Start with " + advice.start.map(function (item) { return "<strong>" + item.domain + "</strong>"; }).join(" and ") + ".</p>";
+  return summary + '<ul class="diagnostic-list">' + cards + "</ul>" +
+    '<p class="hint">Only about ' + Math.round(CONFIG.DIAGNOSTIC_QUESTIONS / DOMAINS.length) + " questions per domain, so this is a rough guide, not a measurement.</p>";
+}
+
+// After a diagnostic round (results screen)
+function renderDiagnosticAdvice(perDomain) {
+  return "<h2>Where to start</h2>" + renderDiagnosticCards(perDomain) +
+    '<div class="button-row"><button class="button ghost" data-action="start-diagnostic">Take the diagnostic again</button></div>' +
+    '<p class="hint">This result is saved on the Diagnostic page.</p>';
+}
+
+/* Diagnostic screen (button on the start page). entries: [{ catalog, index, result }]; result is the saved last
+   diagnostic of that catalog or undefined. */
+function renderDiagnosticScreen(entries) {
+  const sections = entries.map(function (entry) {
+    const startLabel = entry.result ? "Take the diagnostic again" : "Start diagnostic (" + CONFIG.DIAGNOSTIC_QUESTIONS + " questions)";
+    const button = '<div class="button-row"><button class="button' + (entry.result ? " secondary" : "") + '" data-action="start-diagnostic" data-catalog-index="' + entry.index + '">' + startLabel + "</button></div>";
+    const body = entry.result
+      ? '<p class="hint">Last taken on ' + escapeHtml(formatCheckedDate(new Date(entry.result.t).toISOString())) + ". It shows how you did then, not how you do now: practise, then take it again.</p>" +
+        renderDiagnosticCards(entry.result.perDomain, entry.index)
+      : '<p class="hint">Not sure where to start? ' + CONFIG.DIAGNOSTIC_QUESTIONS + " questions across the domains show which ones to practise first. The result is saved here, and you can take it again at any time.</p>";
+    return "<section>" + (entries.length > 1 ? "<h2>" + escapeHtml(entry.catalog.title) + "</h2>" : "") + body + button + "</section>";
+  }).join("");
+  return '<section class="screen">' + renderBackLink("Catalogs") + '<h1 class="page-title">Diagnostic</h1>' +
+    (sections || "<p>No catalog with several domains found.</p>") + "</section>";
 }
 
 function renderResults(round, results, boxes, stats) {
@@ -637,9 +732,10 @@ function renderResults(round, results, boxes, stats) {
     '<div class="two-col"><div>' +
     "<h2>By domain</h2>" +
     '<ul class="domain-list">' + domainRows + "</ul>" +
+    (round.mode === "diagnostic" ? renderDiagnosticAdvice(results.perDomain) : "") +
     "<h2>Where your questions are now</h2>" +
     '<ul class="box-list">' + boxChips + "</ul>" +
-    '<p class="hint">Ratings this round: Again ' + ratings.again + " · Guessed " + ratings.guessed + " · Hard " + ratings.hard + " · Good " + ratings.good + " · Easy " + ratings.easy + "</p>" +
+    '<p class="hint">Ratings this round: Again ' + ratings.again + " · Guessed " + ratings.guessed + " · Unsure " + ratings.unsure + " · Sure " + ratings.sure + "</p>" +
     "<h2>Weak areas</h2>" + weak +
     "</div><div>" +
     "<h2>Review wrong answers</h2>" +
@@ -655,11 +751,11 @@ function renderReady(stats) {
   const reasons = [];
   reasons.push((ready.allGreen ? "✓" : "✗") + " Every domain at " + CONFIG.READY_TARGET + " % or more over its last " + CONFIG.LAST_ANSWERS_WINDOW + " answers");
   reasons.push((ready.coverageOk ? "✓" : "✗") + " At least " + CONFIG.READY_COVERAGE + " % of the questions answered once (now " + stats.coverage.percent + " %)");
-  reasons.push((ready.examsOk ? "✓" : "✗") + " Your last " + EXAM.READY_EXAM_COUNT + " exam simulations at " + EXAM.PASS_PERCENT + " % or more (approximate threshold)");
+  reasons.push((ready.examsOk ? "✓" : "✗") + " Your last " + EXAM.READY_EXAM_COUNT + " timed exam simulations at " + EXAM.PASS_PERCENT + " % or more (approximate threshold)");
   return '<div class="ready ' + (ready.isReady ? "ready-yes" : "ready-no") + '">' +
     "<h3>Ready indicator: " + (ready.isReady ? "green" : "not yet") + "</h3>" +
     "<ul>" + reasons.map(function (reason) { return "<li>" + reason + "</li>"; }).join("") + "</ul>" +
-    '<p class="hint">Indicator only, based on this app\'s questions. It is no guarantee for the real exam.</p></div>';
+    '<p class="hint">Orientation only, not a forecast. It is based on this app\'s questions. The real exam passes at 720 of 1000 points on a scaled score, which is not the same as ' + EXAM.PASS_PERCENT + ' % correct.</p></div>';
 }
 
 function renderStatsSection(catalog, stats) {
@@ -688,7 +784,7 @@ function renderStatsSection(catalog, stats) {
         return "<li><span class=\"round-date\">" + (isNaN(date) ? "" : date.toLocaleDateString()) + "</span>" +
           renderBar(entry.percent) + '<span class="round-score">' + Number(entry.correct) + "/" + Number(entry.total) + " · " + entry.percent + " %</span>" +
           '<span class="exam-domains">' + domainText + (isExamPassed(entry.correct, entry.total) ? " · above ≈" : " · below ≈") + EXAM.PASS_PERCENT + " %" +
-          (entry.timedOut ? " · time ran out" : "") + "</span></li>";
+          (entry.timedOut ? " · time ran out" : "") + (entry.mode === "untimed" ? " · no time limit" : entry.mode === "review" ? " · review mode" : "") + "</span></li>";
       }).join("") + "</ul>"
     : '<p class="hint">No exam simulations yet.</p>';
 
@@ -696,11 +792,11 @@ function renderStatsSection(catalog, stats) {
     '<div class="stats-top"><div>' + renderReady(stats) + "</div><div>" +
     '<div class="stat-pair">' +
     '<div class="stat"><span class="stat-value">' + formatRate(stats.overall.recent, false) + '</span><span class="stat-label">Last ' + CONFIG.LAST_ANSWERS_WINDOW + " answers</span></div>" +
-    '<div class="stat"><span class="stat-value">' + formatRate(stats.overall.allTime, false) + '</span><span class="stat-label">Stored answers (' + stats.overall.allTime.total + ", at most " + CONFIG.HISTORY_LIMIT + ")</span></div></div>" +
+    '<div class="stat"><span class="stat-value">' + formatRate(stats.overall.allTime, false) + '</span><span class="stat-label">All answers (' + stats.overall.allTime.total + ")</span></div></div>" +
     '<p class="coverage"><strong>Coverage:</strong> ' + stats.coverage.seen + " of " + stats.coverage.total + " questions answered at least once</p>" +
     renderBar(stats.coverage.percent) + "</div></div>" +
     '<div class="stats-blocks"><div class="stats-block"><h3>By domain</h3>' +
-    '<table class="stats-table"><thead><tr><th>Domain</th><th>Last ' + CONFIG.LAST_ANSWERS_WINDOW + "</th><th>Stored</th><th>Status</th></tr></thead><tbody>" +
+    '<table class="stats-table"><thead><tr><th>Domain</th><th>Last ' + CONFIG.LAST_ANSWERS_WINDOW + "</th><th>All</th><th>Status</th></tr></thead><tbody>" +
     domainRows + "</tbody></table></div>" +
     '<div class="stats-block"><h3>Recent rounds</h3>' + rounds + "</div>" +
     '<div class="stats-block"><h3>Exam simulations</h3>' + exams + "</div></div></article>";
@@ -734,15 +830,100 @@ function renderStats(entries, reported) {
     renderReportedQuestions(reported) + "</section>";
 }
 
+/* Study notes (data/learn.js) */
+function renderGuideTable(guide) {
+  const head = "<tr>" + guide.headers.map(function (text) { return '<th scope="col">' + escapeHtml(text) + "</th>"; }).join("") + "</tr>";
+  const rows = guide.rows.map(function (row) {
+    return "<tr>" + row.map(function (cell, index) {
+      return index === 0 ? '<th scope="row">' + escapeHtml(cell) + "</th>" : "<td>" + escapeHtml(cell) + "</td>";
+    }).join("") + "</tr>";
+  }).join("");
+  return '<div class="guide-block"><h3>' + escapeHtml(guide.title) + '</h3><div class="table-wrap"><table class="guide-table">' + head + rows + "</table></div></div>";
+}
+
+// counts: task statement id -> number of questions, for the Practice button
+function renderLearn(domain, practice, counts, openTopic) {
+  const notes = window.LEARN && window.LEARN[domain];
+  const domainButtons = DOMAINS.map(function (item) {
+    const available = Boolean(window.LEARN && window.LEARN[item]);
+    return '<button class="choice" data-action="learn-domain" data-value="' + item + '" aria-pressed="' + (item === domain) + '"' +
+      (available ? "" : " disabled") + ">" + item + (available ? "" : " · soon") + "</button>";
+  }).join("");
+  const topics = notes.topics.map(function (topic) {
+    const items = topic.points.map(function (point) { return "<li>" + escapeHtml(point) + "</li>"; }).join("");
+    const links = topic.docs.map(function (doc) {
+      return '<a href="' + escapeHtml(doc.url.replace(/\.md$/, "")) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(doc.label) + "</a>";
+    }).join(" · ");
+    const traps = topic.traps.map(function (trap) {
+      return "<li><strong>" + escapeHtml(trap.wrong) + "</strong> " + escapeHtml(trap.why) + "</li>";
+    }).join("");
+    const count = counts[topic.id] || 0;
+    return '<details class="learn-topic" id="topic-' + escapeHtml(topic.id) + '"' + (topic.id === openTopic ? " open" : "") + '><summary><span class="chip">' + escapeHtml(topic.id) + "</span><span>" + escapeHtml(topic.title) + "</span></summary>" +
+      "<ul>" + items + "</ul>" +
+      (topic.current ? '<p class="notice learn-current"><strong>Current state.</strong> ' + escapeHtml(topic.current) + "</p>" : "") +
+      '<h3 class="learn-sub">Exam traps</h3><p class="hint">Answers that sound right but are not:</p><ul class="trap-list">' + traps + "</ul>" +
+      (links ? '<p class="hint">Read more: ' + links + "</p>" : "") +
+      '<div class="button-row"><button class="button secondary" data-action="learn-practice" data-value="' + escapeHtml(topic.id) + '"' + (count ? "" : " disabled") + ">Practice " +
+      escapeHtml(topic.id) + (count ? " (" + count + " questions)" : "") + "</button></div></details>";
+  }).join("");
+  const done = notes.practice.filter(function (item) { return practice[item.id]; }).length;
+  const exercises = notes.practice.map(function (item) {
+    return '<li><label class="practice-item"><input type="checkbox" data-action="toggle-practice" data-id="' + escapeHtml(item.id) + '"' +
+      (practice[item.id] ? " checked" : "") + "><span>" + escapeHtml(item.text) + "</span></label></li>";
+  }).join("");
+  return '<section class="screen">' + renderBackLink("Catalogs") +
+    '<h1 class="page-title">Study notes</h1>' +
+    '<div class="choice-group" role="group" aria-label="Domain">' + domainButtons + "</div>" +
+    "<h2>" + escapeHtml(domain) + " · " + escapeHtml(DOMAIN_NAMES[domain] || "") + "</h2>" +
+    '<p class="hint">Short notes written by AI from the official docs of ' + escapeHtml(formatCheckedDate(notes.checked)) +
+    ", with a link for every topic. They are not independently reviewed and they do not replace the Exam Guide or the docs. Check anything you doubt at the source.</p>" +
+    "<h2>Task statements</h2>" + topics +
+    "<h2>Which one when?</h2>" + notes.guides.map(renderGuideTable).join("") +
+    "<h2>Build it once</h2>" +
+    '<p class="hint">The exam asks for decisions in a practical setting. Doing each of these once makes the questions easier. <strong id="practice-count">' + done + " of " + notes.practice.length + " done</strong>.</p>" +
+    '<ul class="practice-list">' + exercises + "</ul></section>";
+}
+
+/* Search (js/search.js) */
+function renderSearchResults(result) {
+  if (!result) return '<p class="hint">Type at least ' + SEARCH_MIN_LENGTH + " characters. All words must appear.</p>";
+  if (!result.topics.length && !result.questions.length) return '<p class="notice" role="status">No matches.</p>';
+  const topics = result.topics.length
+    ? "<h2>Study notes (" + result.topics.length + ')</h2><ul class="search-list">' + result.topics.map(function (item) {
+        return '<li><button class="link-button" data-action="learn-topic" data-value="' + escapeHtml(item.id) + '"><span class="chip">' + escapeHtml(item.id) + "</span> " +
+          escapeHtml(item.title) + " · " + item.domain + "</button></li>";
+      }).join("") + "</ul>"
+    : "";
+  const questions = result.questions.length
+    ? "<h2>Questions (" + (result.questions.length + result.moreQuestions) + ')</h2><p class="hint">Opening a question shows the answer. Nothing is recorded.</p>' +
+      result.questions.map(function (item) {
+        return '<details class="review-item"><summary><span class="chip">' + escapeHtml(item.question.domain) + "</span><span>" + escapeHtml(item.question.question) + "</span></summary>" +
+          '<div class="review-body">' + renderAnswerExplanation(item.catalog, item.question, [], true) + renderNoteLink(item.question) + "</div></details>";
+      }).join("") +
+      (result.moreQuestions ? '<p class="hint">' + result.moreQuestions + " more. Refine your search to see them.</p>" : "")
+    : "";
+  return topics + questions;
+}
+
+function renderSearch(notice) {
+  return '<section class="screen">' + renderBackLink("Catalogs") +
+    '<h1 class="page-title">Search</h1>' +
+    (notice ? '<p class="notice" role="status">' + escapeHtml(notice) + "</p>" : "") +
+    '<label class="why-title" for="search-input">Search the study notes and the explanations of the questions</label>' +
+    '<input class="search-input" id="search-input" type="search" autocomplete="off" spellcheck="false">' +
+    '<div id="search-results" aria-live="polite">' + renderSearchResults(null) + "</div></section>";
+}
+
 /* Exam screens */
 function renderTimer(remainingMs) {
+  if (!Number.isFinite(remainingMs)) return '<span class="timer" id="exam-timer">No time limit</span>';
   const isWarning = remainingMs <= EXAM.WARN_MINUTES * 60000;
   return '<span class="timer' + (isWarning ? " warning" : "") + '" id="exam-timer" role="timer">' +
     formatDuration(remainingMs / 1000) + "</span>";
 }
 
 function renderExamPauseButton() {
-  return '<button class="pause-button" data-action="exam-pause" aria-label="Pause the exam and stop the timer">' + icon("pause") + "<span>Pause</span></button>";
+  return '<button class="pause-button" data-action="exam-pause" aria-label="Pause the exam">' + icon("pause") + "<span>Pause</span></button>";
 }
 
 function renderExamQuestion(exam, remainingMs) {
@@ -752,8 +933,17 @@ function renderExamQuestion(exam, remainingMs) {
   const required = requiredSelections(question);
   const isLast = index === exam.questions.length - 1;
 
+  const isChecked = exam.checked[index] === true; // review mode: answer checked, options locked, explanation shown
   const options = question.options.map(function (option, optionIndex) {
     const isSelected = chosen.indexOf(optionIndex) !== -1;
+    if (isChecked) {
+      const state = option.isCorrect ? " correct" : (isSelected ? " wrong" : "");
+      const note = option.isCorrect ? icon("check") + (isSelected && required > 1 ? "Your answer · correct" : "Correct answer")
+        : (isSelected ? icon("cross") + "Your answer" : "");
+      return '<button class="option' + state + '" disabled><span class="badge">' + OPTION_LETTERS[optionIndex] + "</span>" +
+        '<span class="option-body"><span class="option-text">' + escapeHtml(option.text) + "</span>" +
+        (note ? '<span class="option-note">' + note + "</span>" : "") + "</span></button>";
+    }
     const isBlocked = !isSelected && required > 1 && chosen.length >= required; // deselect one first
     return '<button class="option' + (isSelected ? " selected" : "") + (isBlocked ? " blocked" : "") + '" data-action="exam-answer" data-option-index="' +
       optionIndex + '" aria-pressed="' + isSelected + '"' + (isBlocked ? " disabled" : "") + ">" +
@@ -761,6 +951,8 @@ function renderExamQuestion(exam, remainingMs) {
       '<span class="option-body"><span class="option-text">' + escapeHtml(option.text) + "</span>" +
       (isSelected ? '<span class="option-note">Selected</span>' : "") + "</span></button>";
   }).join("");
+  const needsCheck = exam.mode === "review" && !isChecked;
+  const paceHint = isTimedExam(exam) ? renderPaceHint(examPlanDelayMs(exam, Date.now())) : "";
 
   const isMarked = exam.marked[index];
   return '<section class="screen with-action-bar">' +
@@ -769,7 +961,7 @@ function renderExamQuestion(exam, remainingMs) {
     '<span class="counter">' + (index + 1) + "/" + exam.questions.length + "</span></div>" +
     '<div class="q-layout"><div class="q-side">' +
     '<div class="exam-meta"><span class="hint">Question ' + (index + 1) + " of " + exam.questions.length + " · " +
-    countExamAnswered(exam) + " answered</span>" +
+    countExamAnswered(exam) + " answered</span>" + paceHint +
     '<span class="meta-actions"><button class="mark-button" data-action="exam-overview">' + icon("grid") + "Overview</button>" +
     '<button class="mark-button' + (isMarked ? " on" : "") + '" data-action="exam-mark" aria-pressed="' + isMarked + '">' +
     icon("flag") + (isMarked ? "Marked" : "Mark") + "</button></span></div>" +
@@ -777,11 +969,30 @@ function renderExamQuestion(exam, remainingMs) {
     '<h2 class="question-text">' + escapeHtml(question.question) + "</h2>" +
     renderSelectHint(question, chosen.length, true) +
     renderKeyboardHint(false) + "</div>" +
-    '<div class="q-main"><div class="options" role="group" aria-label="Answer options">' + options + "</div></div></div></section>" +
+    '<div class="q-main"><div class="options" role="group" aria-label="Answer options">' + options + "</div>" +
+    (isChecked ? renderExamFeedback(exam.catalog, question, chosen) : "") + "</div></div></section>" +
     '<nav class="action-bar" aria-label="Question navigation"><div class="action-bar-inner">' +
     '<button class="button secondary" data-action="exam-prev"' + (index === 0 ? " disabled" : "") + ">" + icon("back") + "Back</button>" +
-    '<button class="button" data-action="' + (isLast ? "exam-overview" : "exam-next") + '"' + (isExamAnswered(exam, index) ? "" : " disabled") + ">" +
-    (isLast ? "Review and submit" : "Next" + icon("next")) + "</button></div></nav>";
+    (needsCheck
+      ? '<button class="button" data-action="exam-check"' + (isExamAnswered(exam, index) ? "" : " disabled") + ">Check answer</button>"
+      : '<button class="button" data-action="' + (isLast ? "exam-overview" : "exam-next") + '"' + (isExamAnswered(exam, index) ? "" : " disabled") + ">" +
+        (isLast ? "Review and submit" : "Next" + icon("next")) + "</button>") +
+    "</div></nav>";
+}
+
+// Review mode: verdict and explanation of a checked answer
+function renderExamFeedback(catalog, question, chosen) {
+  const isCorrect = isSelectionCorrect(question, chosen);
+  return '<section class="feedback ' + (isCorrect ? "correct" : "wrong") + '" id="feedback" tabindex="-1">' +
+    '<h3 class="verdict">' + (isCorrect ? icon("check") + "Correct" : icon("cross") + "Not quite") + "</h3>" +
+    renderAnswerExplanation(catalog, question, chosen, false) + "</section>";
+}
+
+// Timed exam: ahead of or behind the plan of two minutes per answered question. Within two minutes counts as on plan.
+function renderPaceHint(delayMs) {
+  const minutes = Math.round(Math.abs(delayMs) / 60000);
+  const text = minutes < 2 ? "on plan" : minutes + " min " + (delayMs < 0 ? "ahead of" : "behind") + " plan";
+  return '<span class="hint pace-hint">Pace: ' + text + "</span>";
 }
 
 // No skipping: only answered questions and the next open one can be opened.
@@ -816,6 +1027,17 @@ function renderExamOverview(exam, remainingMs) {
     '<button class="button" data-action="exam-submit">Submit exam</button></div></section>';
 }
 
+// Pace of a timed exam: where the time went
+function renderPaceSummary(score) {
+  if (score.mode !== "timed" || !score.pace || score.pace.averageMs <= 0) return "";
+  const plan = EXAM.MINUTES * 60 / EXAM.QUESTIONS;
+  const slowest = score.pace.slowest.map(function (item) { return "question " + item.number + " (" + formatDuration(item.ms / 1000) + ")"; }).join(", ");
+  return '<div class="pace-summary"><h2>Pace</h2><p class="hint">Average ' + formatDuration(score.pace.averageMs / 1000) +
+    " per question, the plan is " + formatDuration(plan) + ". Slowest: " + slowest + "." +
+    (score.pace.markedCount ? " Questions you marked took " + formatDuration(score.pace.markedMs / 1000) + " in total (" + score.pace.markedCount + ")." : "") +
+    " Compare a close result with this: it shows whether time or knowledge was the problem.</p></div>";
+}
+
 function renderExamResults(exam, score) {
   const domainRows = DOMAINS.filter(function (domain) {
     return score.perDomain[domain];
@@ -840,6 +1062,10 @@ function renderExamResults(exam, score) {
     '<div class="ready ' + (score.isAbovePass ? "ready-yes" : "ready-no") + '">' +
     "<h3>" + (score.isAbovePass ? "Above" : "Below") + " the approximate pass threshold of " + EXAM.PASS_PERCENT + " %</h3>" +
     '<p class="hint">Approximation only. The real exam passes at 720 of 1000 points on a scaled score, and the conversion from correct answers is not known.</p></div>' +
+    (score.mode === "untimed" || score.mode === "review"
+      ? '<p class="notice" role="status">' + (score.mode === "review" ? "Review mode: you saw every explanation as you went, so this result is not comparable with a timed exam." : "No time limit: this result is not comparable with a timed exam.") + "</p>" : "") +
+    (score.wasPaused ? '<p class="notice" role="status">You paused this exam. The real exam cannot be paused, so compare this result with care.</p>' : "") +
+    renderPaceSummary(score) +
     '<div class="two-col"><div>' +
     "<h2>By domain</h2>" + '<ul class="domain-list">' + domainRows + "</ul>" +
     '<p class="hint">Wrong answers are now in box 1 of your learning progress.</p></div><div>' +

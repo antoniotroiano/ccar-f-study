@@ -9,7 +9,7 @@
   const catalog = {
     id: "core-ccar-f",
     title: "CCAR-F Core Catalog",
-    description: "Exam-style questions based on the official Exam Guide v1.0. Reviewed by AI, spot-checked by a human.",
+    description: "Exam-style questions based on the official Exam Guide v1.0. Drafted by AI, source quotes checked by script, not independently reviewed.",
     createdAt: "2026-10-20",
     sourcesCheckedAt: "2026-10-20",
     basedOn: "Claude Certified Architect – Foundations Exam Guide v1.0 (July 2026)",

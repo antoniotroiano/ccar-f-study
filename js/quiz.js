@@ -39,10 +39,11 @@ function shuffledOrder(question) {
   return shuffle(question.options.map(function (_, index) { return index; }));
 }
 
-const ROUND_MODES = ["mixed", "mistakes", "weak"];
+const ROUND_MODES = ["mixed", "mistakes", "weak", "diagnostic"];
 
 // sourceQuestions: the catalog questions chosen for this round (see selectRoundQuestions)
-// mode: "mixed" (the normal choice of questions), "mistakes" (only questions from box 1) or "weak" (only weak domains)
+// mode: "mixed" (the normal choice of questions), "mistakes" (only questions from box 1), "weak" (only weak domains)
+// or "diagnostic" (a few questions per domain by exam weight, followed by a recommendation)
 function createRound(catalog, sourceQuestions, domainFilter, requestedLength, repeatWrong, mode) {
   return {
     catalog: catalog,
@@ -205,8 +206,9 @@ function restoreRound(catalog, saved) {
     if (selected !== null) {
       if (selected.length !== requiredSelections(round.questions[index])) return null;
       submitAnswer(round, index, selected);
-      if (entry.rating !== null && RATINGS.indexOf(entry.rating) === -1) return null;
-      round.answers[index].rating = entry.rating;
+      const rating = entry.rating in LEGACY_RATINGS ? LEGACY_RATINGS[entry.rating] : entry.rating;
+      if (rating !== null && RATINGS.indexOf(rating) === -1) return null;
+      round.answers[index].rating = rating;
     }
   }
 
@@ -228,7 +230,7 @@ function isExamPassed(correct, total) {
 function calculateResults(round) {
   const perDomain = {};
   const wrongQuestions = [];
-  const ratingCounts = { again: 0, guessed: 0, hard: 0, good: 0, easy: 0 };
+  const ratingCounts = { again: 0, guessed: 0, unsure: 0, sure: 0 };
   const questionIds = [];
   let correctCount = 0;
   let guessedCount = 0;

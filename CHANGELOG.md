@@ -3,26 +3,39 @@
 Every release gets a version number and a GitHub release. Raise the number with `node tools/bump-version.js patch|minor|major`, then add an entry here.
 While the version starts with `0.`, the app is in its early phase: `minor` for new features, `patch` for fixes and new questions. `1.0.0` is for the first version you consider stable, ideally after other people have tried it. After that: `major` for changes that break saved data, `minor` for new features, `patch` for fixes and new questions.
 
-## Unreleased
+## 0.2.0 (2026-11-13)
 
-Fixes from the code review (`docs/review-code.md`: K1, K2, K3, W1, W3, W4, W5, W6, part of W7, W8, S1). No change to the storage format.
+New learning aids, a simpler rating and many fixes. The first version with study notes.
 
-- Backup restore rebuilds every record from known fields and checks ids. Text and attribute values are fully escaped.
-- A failed write (storage full or blocked) is shown. An exam stays saved until its result is stored. A backup merge is all or nothing and counts only what was really added.
-- The exam pass check uses the exact share: 44 of 60 passes, 43 does not.
-- Rounds from the domain catalogs now appear in the statistics of the core catalog.
-- Damaged or outdated paused rounds and exams no longer break the home screen. They are discarded only when you try to resume them.
-- Service worker: only a good start page is cached, only its own caches are deleted, background updates finish before the worker stops.
-- Backup download link stays valid for 30 seconds.
-- New switch "Check before answering": tapping an answer only selects it, "Check answer" confirms (off by default).
-- Keyboard and screen reader: focus stays on the control you used or moves to the feedback, "Correct" / "Not quite" is announced, the window title follows the screen, answered options stay reachable, and the letter and digit shortcuts can be turned off.
-- Content Security Policy in `index.html` (scripts only from the app itself plus the theme snippet) as a second layer against injected code.
-- The app asks for a new version when you return to it, and the service worker script is no longer cached by the browser. The maskable icon is cached for offline use.
-- Texts now say what the code does: "Practice my mistakes" holds questions answered wrong or guessed; statistics say "Stored answers" (at most 1000), not "All time".
-- Deleting a catalog or progress points to the backup when none was exported yet. External links also get `noreferrer`. Question and scenario ids named like `constructor` work. Duplicate scenario ids in an import are reported.
-- Statistics compare exact values with the thresholds (69.6 % no longer counts as 70 %). An imported catalog that fails the check on load is reported instead of disappearing. Imported questions can carry an optional `taskStatement` (for example "1.2"). The start page falls back to the cached copy after 4 seconds without a network answer.
-- Smaller accessibility fixes: the theme button and the switches are read out once (no double state), the progress bar has a text alternative, and notices and messages are announced.
-- Borders of buttons and answer options have enough contrast; the top bar buttons and the update button are 44 px high.
+**New**
+- **Study notes:** short notes for all 30 task statements of the Exam Guide, with exam traps, links to the docs, "which one when" tables, a "build it once" checklist (47 exercises) and a Practice button for each task statement. Written by AI from the docs of 20 Oct 2026 and not independently reviewed.
+- **Search** in the top bar: finds words in the study notes and in the explanations of the questions.
+- **Diagnostic:** a 20-question round across the domains. It names the weakest domains with a Practice button each. The last result is saved on its own page.
+- **Three exam modes:** 120 minutes as before, no time limit, or review mode with an explanation after each answer. A pace hint and a time summary help in the timed exam.
+- **Exam date:** set it under "More" and the start page shows how many days are left.
+- **Browser Back button and swipe gesture** now go one screen back. Back from a round or exam asks first and pauses it.
+- **Practice by task statement**, and links between wrong answers, statistics and the matching study note.
+- **Check before answering:** a switch so that tapping an answer only selects it. Useful on a phone.
+
+**Changed**
+- **Rating after a right answer:** Guessed, Unsure or Sure (before: Guessed, Hard, Good, Easy). Guessed counts as wrong and sends the question to box 1. Unsure keeps its box. Sure moves it up one box. Keys 1, 2 and 3 rate. Enter never rates. Paused rounds with the old names still resume.
+- **"Practice my mistakes"** holds the questions in box 1: answered wrong, guessed, or right but rated Unsure on the first try.
+- **Statistics** count all your answers without a limit, also with imported catalogs. "By task statement" shows how many questions are safe (box 4 or higher).
+- **Backup with two devices:** answers counted on each device are added up, so phone and laptop both count.
+- **Start page:** the "Practice by domain" cards are gone (the domain choice in the round setup does the same). Import and the exam date moved to "More". The main button of a catalog is now "Practice". The Help page covers all functions.
+- **Ready indicator:** it says it is orientation only. A domain needs 10 answers before it counts as weak.
+- **Honest wording:** the core catalog is described as drafted by AI with source quotes checked by script, not independently reviewed.
+
+**Fixed and improved**
+- Backup restore checks every record and escapes all values. A failed save is reported. A merge is all or nothing.
+- The exam pass check is exact: 44 of 60 passes, 43 does not.
+- Damaged paused rounds or exams no longer break the start page. The update check, offline cache and security settings are more robust.
+- Better contrast for button borders, larger tap areas for switches and small buttons, keyboard and screen reader improvements, and no sideways scrolling in the task statement list on a phone.
+- Backup, template and report downloads use one safer download routine.
+
+**Saved data**
+- New keys in this browser: `ccarf.device.v1` (device id, not in the backup), `ccarf.diagnostic.v1` (last diagnostic result) and `ccarf.practice.v1` (ticked exercises).
+- Progress entries get an optional `byDevice` counter, and settings, exams and results get optional mode fields. Backups stay version 1. Old backups and saved data still load. Counters from before this version are kept as before (the larger value wins).
 
 ## 0.1.0 (2026-11-12)
 

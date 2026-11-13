@@ -7,9 +7,14 @@ A practice app for the **Claude Certified Architect – Foundations (CCAR-F)** e
 ## Features
 
 - **Learning rounds** of 5, 10, 15 or 20 questions, with the reason why an answer is right or wrong and where the question comes from.
-- **Five boxes** (Leitner system): rate every right answer Guessed, Hard, Good or Easy. Wrong and guessed answers go back to box 1. Low boxes come first in the next round.
-- **Practice my mistakes:** a round with only the questions you got wrong or guessed.
+- **Five boxes** (Leitner system): rate every right answer Guessed, Unsure or Sure. Wrong and guessed answers go back to box 1. Low boxes come first in the next round.
+- **Practice my mistakes:** a round with only the questions in box 1: wrong, guessed, or right but rated Unsure on the first try.
 - **Rounds by scenario:** practise one of the six exam scenarios, with the full scenario text from the Exam Guide.
+- A **20-question diagnostic** (button on the start page) that shows a result card per domain, marks where to start, saves the last result so you can look at it again, and can be taken again.
+- **Exam modes:** 120 minutes, no time limit, or review mode (check each answer and read the explanation as you go). Timed exams show your pace.
+- **Study notes:** short notes for all 30 task statements with links to the docs, exam traps, "which one when" tables, a Practice button and a build-it-once checklist. Written by AI from the docs of 20 Oct 2026, not independently reviewed.
+- **Search and note links:** a search over the study notes and the question explanations. Wrong answers in a result, and every task statement in the statistics, link to the matching study note.
+- **Exam date:** set the day of your exam under "More" on the start page, and a small line at the top counts the days. Nothing shows until you set a date. It stays on the device (not in the backup).
 - **Practice weak domains:** a round with questions only from the domains where your recent answers are below 70 %.
 - **Repeat wrong questions** (optional switch per catalog): a wrong question comes back at the end of the round, up to 3 times.
 - **Exam simulation:** 60 questions in 120 minutes, drawn by domain weight, no feedback until you submit. A second variant, the **scenario exam**, works like the real one: it picks 4 of the 6 scenarios at random and draws all questions from them. Mark questions, jump back, pause, automatic submit when time runs out.
@@ -17,6 +22,7 @@ A practice app for the **Claude Certified Architect – Foundations (CCAR-F)** e
 - **Select 2 questions**, scenarios, sources with quotes, and a "Report a problem" note on every question.
 - **Your own catalogs:** import them from a JSON file. The Help page has a template and a prompt for an AI.
 - **Backup:** export your progress to a file and merge it back in on another device.
+- **Back and Forward** of the browser (and the swipe gesture on a phone) step through the screens. Back from a running round or exam asks first and then pauses it.
 - Light and dark theme, keyboard shortcuts on the desktop, installable, works offline.
 
 ## Use it
@@ -29,7 +35,7 @@ The app is a static website. Open the published address, or install it:
 
 An installed app on the iPhone has its own storage, separate from Safari. Use **Export progress** and **Restore from backup** to move your progress into it.
 
-Live address: `https://antoniotroiano.github.io/ccar-f-study/` (fill in after the first deploy).
+Live address: `https://antoniotroiano.github.io/ccar-f-study/`
 
 ## Run it locally
 
@@ -46,7 +52,7 @@ Offline use and installation need `https` or `localhost`. Opened from a file, th
 
 | Catalog | What it is |
 |---|---|
-| Core catalog | Exam-style questions written by AI against the task statements of the official Exam Guide, then spot-checked by a person. Each question names its source with a verbatim quote. |
+| Core catalog | Exam-style questions drafted by AI against the task statements of the official Exam Guide. A script checks each source quote, but the questions are not independently reviewed. Each question names its source with a verbatim quote. |
 | One catalog per domain | The questions of the core catalog split by exam domain. They share progress with the core catalog. |
 | Exam Guide sample questions | The twelve sample questions of section 9 of the Exam Guide, with the guide's explanations. See *Content and rights*. |
 | Imported catalogs | Your own, from a JSON file. Stored in your browser only. |
@@ -69,12 +75,12 @@ Create a `.js` file in `data/` that pushes a catalog object onto `window.CATALOG
 
 ## Your data
 
-Everything stays in your browser. Nothing is sent to a server. Progress, answers, rounds, exams and reports live in the browser's local storage, separately on every device and browser.
+Everything stays in your browser. Nothing is sent to a server. Progress, answers, rounds, exams, the last diagnostic result and reports live in the browser's local storage, separately on every device and browser.
 
 - A **new version of the app does not delete your progress.** The version only changes the app's files.
 - Progress belongs to a question by its catalog id and question id. If an id changes, the progress for that question is lost. Never change ids of published questions.
 - Clearing the browser data, using another address (for example after renaming the repository) or a private window starts with empty data.
-- **Export progress** (bottom of the start page) saves a copy. **Restore from backup** merges it in: for a question that exists in both, the newer answer wins, and nothing is deleted.
+- **Export progress** (bottom of the start page) saves a copy. **Restore from backup** merges it in: for a question that exists in both, the box of the newer answer is kept and the answers counted on each device are added up. Restoring the same file again does not count anything twice, and nothing is deleted.
 
 ## Project structure
 
@@ -85,6 +91,7 @@ js/                   the app, no framework
   version.js          the version number (one place)
   quiz.js learning.js exam.js stats.js    rounds, boxes, exam, statistics
   storage.js backup.js catalog-import.js  saved data, backup, catalog import
+  search.js                               search over study notes and questions
   render.js app.js help.js                screens, flow, help page
 data/                 catalogs (core catalog, per-domain catalogs, sample questions)
 tools/                check and release helpers (Node, no dependencies)

@@ -17,6 +17,8 @@ function buildBackup(now) {
       rounds: loadRounds(),
       examResults: loadExamResults(),
       flags: loadFlags(),
+      practice: loadPractice(),
+      diagnostic: loadDiagnostics(),
       importedCatalogs: readJson(KEY_IMPORTED, isPlainObject, {})
     }
   };
@@ -53,7 +55,7 @@ function cleanExamResult(entry) {
     if (isPlainObject(item) && isCount(item.correct) && isCount(item.total)) perDomain[domain] = { correct: item.correct, total: item.total };
   });
   return { t: entry.t, catalogId: entry.catalogId, total: entry.total, correct: entry.correct, percent: entry.percent, perDomain: perDomain,
-    timedOut: entry.timedOut === true, durationSeconds: isCount(entry.durationSeconds) ? entry.durationSeconds : 0 };
+    timedOut: entry.timedOut === true, mode: EXAM.MODES.indexOf(entry.mode) !== -1 ? entry.mode : "timed", durationSeconds: isCount(entry.durationSeconds) ? entry.durationSeconds : 0 };
 }
 
 function cleanList(list, clean) {
@@ -84,7 +86,7 @@ function parseBackup(text) {
       const catalogId = key.slice(0, at);
       const questionId = key.slice(at + 2);
       if (!isImportId(catalogId) || !isImportId(questionId)) return;
-      progress[progressKey(catalogId, questionId)] = progressEntry(data.progress, catalogId, questionId);
+      progress[progressKey(catalogId, questionId)] = progressEntry(data.progress, catalogId, questionId); // rebuilt from known fields, byDevice included
     });
   }
 
@@ -97,6 +99,21 @@ function parseBackup(text) {
         flags[progressKey(flag.catalogId, flag.questionId)] = { catalogId: flag.catalogId, questionId: flag.questionId,
           note: typeof flag.note === "string" ? flag.note.slice(0, 1000) : "", t: flag.t };
       }
+    });
+  }
+
+  const practice = {};
+  if (isPlainObject(data.practice)) {
+    Object.keys(data.practice).forEach(function (id) {
+      if (/^[a-z0-9-]{1,40}$/.test(id) && isFiniteTime(data.practice[id])) practice[id] = data.practice[id];
+    });
+  }
+
+  const diagnostic = {};
+  if (isPlainObject(data.diagnostic)) {
+    Object.keys(data.diagnostic).forEach(function (id) {
+      const entry = cleanDiagnostic(data.diagnostic[id]);
+      if (isImportId(id) && entry) diagnostic[id] = entry;
     });
   }
 
@@ -116,6 +133,8 @@ function parseBackup(text) {
       rounds: cleanList(data.rounds, cleanRoundRecord),
       examResults: cleanList(data.examResults, cleanExamResult),
       flags: flags,
+      practice: practice,
+      diagnostic: diagnostic,
       importedCatalogs: importedCatalogs
     }
   };
@@ -152,7 +171,21 @@ function countNew(local, finalList, keyOf) {
   return finalList.filter(function (record) { return !known.has(keyOf(record)); }).length;
 }
 
-/* Merges a parsed backup into this browser. For a question that exists on both sides, the newer answer wins.
+// Box and last answer come from the newer entry. The counters take the larger value per device and add them up.
+function mergeProgressEntries(local, incoming) {
+  const newer = incoming.last > local.last ? incoming : local;
+  const byDevice = {};
+  [local, incoming].forEach(function (entry) {
+    Object.keys(entry.byDevice).forEach(function (id) {
+      const have = byDevice[id] || { right: 0, wrong: 0 };
+      byDevice[id] = { right: Math.max(have.right, entry.byDevice[id].right), wrong: Math.max(have.wrong, entry.byDevice[id].wrong) };
+    });
+  });
+  const sum = sumDevices(byDevice);
+  return { box: newer.box, last: newer.last, right: sum.right, wrong: sum.wrong, byDevice: byDevice };
+}
+
+/* Merges a parsed backup into this browser. For a question that exists on both sides, box and last answer come from the newer one and the counters are combined per device.
    History, rounds, exams and reports are combined without duplicates. An imported catalog that already exists is kept as it is.
    Everything is computed first and then written. When one write fails, the old values are put back and result.failed is true.
    builtInIds: catalog ids that an imported catalog must not take over. Returns what changed. */
@@ -164,10 +197,11 @@ function mergeBackup(backup, builtInIds, existingCatalogIds) {
     const at = key.indexOf("::");
     const local = progressEntry(progress, key.slice(0, at), key.slice(at + 2));
     const incoming = backup.progress[key];
-    if (!progress[key] || incoming.last > local.last) {
-      progress[key] = incoming;
+    const merged = mergeProgressEntries(local, incoming);
+    if (!progress[key] || merged.last !== local.last || merged.right !== local.right || merged.wrong !== local.wrong || merged.box !== local.box) {
       result.questionsUpdated++;
     }
+    progress[key] = merged;
   });
 
   const historyKey = function (entry) { return entry.t + "|" + entry.catalogId + "|" + entry.questionId; };
@@ -192,13 +226,25 @@ function mergeBackup(backup, builtInIds, existingCatalogIds) {
     }
   });
 
+  // ticked exercises: union, the earlier time stays
+  const practice = loadPractice();
+  Object.keys(backup.practice).forEach(function (id) {
+    if (!(id in practice)) practice[id] = backup.practice[id];
+  });
+
+  // last diagnostic result: the newer one wins
+  const diagnostics = loadDiagnostics();
+  Object.keys(backup.diagnostic).forEach(function (id) {
+    if (!diagnostics[id] || backup.diagnostic[id].t > diagnostics[id].t) diagnostics[id] = backup.diagnostic[id];
+  });
+
   const newCatalogs = Object.keys(backup.importedCatalogs).filter(function (id) {
     return builtInIds.indexOf(id) === -1 && existingCatalogIds.indexOf(id) === -1;
   }).map(function (id) { return backup.importedCatalogs[id]; });
 
-  const snapshot = snapshotKeys([KEY_PROGRESS, KEY_HISTORY, KEY_ROUNDS, KEY_EXAM_RESULTS, KEY_FLAGS, KEY_IMPORTED]);
+  const snapshot = snapshotKeys([KEY_PROGRESS, KEY_HISTORY, KEY_ROUNDS, KEY_EXAM_RESULTS, KEY_FLAGS, KEY_PRACTICE, KEY_DIAGNOSTIC, KEY_IMPORTED]);
   const ok = saveProgress(progress) && saveHistory(mergedHistory) && saveRounds(mergedRounds) &&
-    saveExamResults(mergedExams) && saveFlags(flags) && newCatalogs.every(saveImportedCatalog);
+    saveExamResults(mergedExams) && saveFlags(flags) && writeJson(KEY_PRACTICE, practice) && saveDiagnostics(diagnostics) && newCatalogs.every(saveImportedCatalog);
   if (!ok) {
     restoreKeys(snapshot);
     return { questionsUpdated: 0, answersAdded: 0, roundsAdded: 0, examsAdded: 0, reportsAdded: 0, catalogsAdded: [], failed: true };

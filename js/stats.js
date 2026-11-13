@@ -1,9 +1,25 @@
-/* Statistics for one catalog, all calculated from the stored answers */
-function tally(entries) {
-  const correct = entries.filter(function (entry) { return entry.correct; }).length;
+/* Statistics for one catalog. "Last N" comes from the answer history (limited to CONFIG.HISTORY_LIMIT entries),
+   all totals come from the per-question counters in progress, which have no limit. */
+function tallyCounts(correct, total) {
   // rate is rounded for display; exact is for comparisons with thresholds (69.6 % must not count as 70 %)
-  return { correct: correct, total: entries.length, rate: entries.length ? percent(correct, entries.length) : null,
-    exact: entries.length ? (correct / entries.length) * 100 : null };
+  return { correct: correct, total: total, rate: total ? percent(correct, total) : null,
+    exact: total ? (correct / total) * 100 : null };
+}
+
+function tally(entries) {
+  return tallyCounts(entries.filter(function (entry) { return entry.correct; }).length, entries.length);
+}
+
+// Sums the counters of some questions. A guessed answer was stored as wrong, so it is not correct here either.
+function tallyQuestions(questions, progress, catalogId) {
+  let correct = 0;
+  let total = 0;
+  questions.forEach(function (question) {
+    const entry = progressEntry(progress, catalogId, question.id);
+    correct += entry.right;
+    total += entry.right + entry.wrong;
+  });
+  return tallyCounts(correct, total);
 }
 
 function lastAnswers(entries) {
@@ -44,7 +60,7 @@ function computeStats(catalog) {
     return {
       domain: domain,
       recent: recent,
-      allTime: tally(entries),
+      allTime: tallyQuestions(catalog.questions.filter(function (question) { return question.domain === domain; }), progress, dataId(catalog)),
       light: domainLight(recent),
       isWeak: recent.total >= CONFIG.MIN_ANSWERS && recent.exact < CONFIG.WEAK_THRESHOLD
     };
@@ -53,21 +69,24 @@ function computeStats(catalog) {
   // per task statement (30 in the Exam Guide); questions without one in their source label are left out
   const statementOf = {};
   catalog.questions.forEach(function (question) {
-    // the field taskStatement wins; the label text "Task Statement 1.2" is the fallback (core catalog)
-    const match = question.taskStatement ? [null, question.taskStatement] : (question.source && /Task Statement (\d\.\d+)/.exec(question.source.label || ""));
-    if (match && window.TASK_STATEMENTS && window.TASK_STATEMENTS[match[1]]) statementOf[question.id] = match[1];
+    const id = taskStatementOf(question);
+    if (id) statementOf[question.id] = id;
   });
   const statements = Object.keys(window.TASK_STATEMENTS || {}).filter(function (id) {
     return Object.keys(statementOf).some(function (questionId) { return statementOf[questionId] === id; });
   }).map(function (id) {
-    const entries = history.filter(function (entry) { return statementOf[entry.questionId] === id; });
-    const all = tally(entries);
+    const statementQuestions = catalog.questions.filter(function (question) { return statementOf[question.id] === id; });
+    const all = tallyQuestions(statementQuestions, progress, dataId(catalog));
     return {
       id: id,
       title: window.TASK_STATEMENTS[id],
-      questions: Object.keys(statementOf).filter(function (questionId) { return statementOf[questionId] === id; }).length,
+      questions: statementQuestions.length,
+      safe: statementQuestions.filter(function (question) {
+        return progressEntry(progress, dataId(catalog), question.id).box >= CONFIG.SAFE_BOX;
+      }).length,
       allTime: all,
-      hasData: all.total >= TASK_MIN_ANSWERS
+      hasData: all.total >= TASK_MIN_ANSWERS,
+      isWeak: all.total >= TASK_MIN_ANSWERS && all.exact < CONFIG.WEAK_THRESHOLD
     };
   });
 
@@ -82,7 +101,8 @@ function computeStats(catalog) {
   const isOwn = function (entry) { return ownIds.indexOf(entry.catalogId) !== -1; };
 
   const exams = loadExamResults().filter(isOwn);
-  const latestExams = exams.slice(-EXAM.READY_EXAM_COUNT);
+  // untimed and review exams are easier and not comparable, so they do not count here (results without a mode are timed)
+  const latestExams = exams.filter(function (entry) { return !entry.mode || entry.mode === "timed"; }).slice(-EXAM.READY_EXAM_COUNT);
   const examsOk = latestExams.length >= EXAM.READY_EXAM_COUNT && latestExams.every(function (entry) {
     return isExamPassed(entry.correct, entry.total);
   });
@@ -96,7 +116,7 @@ function computeStats(catalog) {
     .reverse();
 
   return {
-    overall: { recent: tally(lastAnswers(history)), allTime: tally(history) },
+    overall: { recent: tally(lastAnswers(history)), allTime: tallyQuestions(catalog.questions, progress, dataId(catalog)) },
     domains: domains,
     statements: statements,
     weakDomains: domains.filter(function (item) { return item.isWeak; }),

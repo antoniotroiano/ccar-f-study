@@ -103,9 +103,9 @@ function catalogPromptText() {
 
 function renderHelp(notice) {
   const shortcuts = [
-    ["A – D", "Choose an answer"],
-    ["1 / 2 / 3", "Rate Guessed, Hard, Good or Easy"],
-    ["Enter", "Check the answer or continue"],
+    ["Letters (A, B, C …)", "Choose an answer"],
+    ["1 / 2 / 3", "Rate Guessed, Unsure or Sure"],
+    ["Enter", "Check the answer or continue (it never rates: use 1, 2 or 3)"],
     ["← / →", "Previous or next question"]
   ].map(function (row) {
     return "<tr><th scope=\"row\">" + row[0] + "</th><td>" + row[1] + "</td></tr>";
@@ -118,23 +118,35 @@ function renderHelp(notice) {
 
     "<h2>What this app does</h2>" +
     "<p>This app helps you prepare for the Claude Certified Architect – Foundations exam. You practise in short rounds, see the explanation after every answer, and the app remembers which questions you find hard.</p>" +
-    '<p class="hint">It is an unofficial learning aid and not affiliated with Anthropic. The core catalog was drafted by AI from the official Exam Guide and spot-checked by a person, so a question can still contain a mistake. Use \"Report a problem\" on a question you doubt.</p>' +
+    '<p class="hint">It is an unofficial learning aid and not affiliated with Anthropic. The core catalog was drafted by AI from the official Exam Guide. A script checks that each source quote appears in the guide, but the questions were not independently reviewed, so a question can still contain a mistake. Use \"Report a problem\" on a question you doubt.</p>' +
+
+    "<h2>Study notes</h2>" +
+    "<p>The Study notes button on the start page opens short notes for the 30 task statements of the Exam Guide, one domain at a time. Each task statement has key points, exam traps (answers that sound right but are not), the current state of the docs where it matters, links to the docs and a Practice button for its questions. Each domain also has a \"Which one when?\" table and a Build it once checklist of small exercises. The checklist is saved in this browser.</p>" +
+    '<p class="hint">The notes were written by AI from the official docs and are not independently reviewed. They do not replace the Exam Guide or the docs.</p>' +
+
+    "<h2>Diagnostic and search</h2>" +
+    "<ul>" +
+    "<li><strong>Diagnostic</strong> (start page) is a round of " + CONFIG.DIAGNOSTIC_QUESTIONS + " questions across the domains. The result names the domains to practise first, with a Practice button for each. It is a rough guide, not a measurement. The last result is saved on the Diagnostic page.</li>" +
+    "<li><strong>Search</strong> (top of every page) finds words in the study notes and in the explanations of the questions.</li>" +
+    "</ul>" +
 
     "<h2>Learning rounds</h2>" +
     "<ul>" +
-    "<li>Choose a catalog and press Learn. Pick 5, 10, 15 or 20 questions and, if you like, one domain.</li>" +
+    "<li>Choose a catalog and press Practice. Pick 5, 10, 15 or 20 questions and, if you like, one domain.</li>" +
     "<li>After each answer you see why it is right or wrong and where the question comes from.</li>" +
-    "<li>A wrong answer counts as Again. After a right answer you rate it Guessed, Hard, Good or Easy. Guessed is for a right answer that was luck: it does not count as right in your statistics, and the question goes back to box 1.</li>" +
-    "<li>Every question sits in one of five boxes. Again and Guessed put it back in box 1, Hard keeps its box, Good moves it up by one and Easy by two. The next round takes questions from low boxes first and mixes in new ones.</li>" +
+    "<li>A wrong answer counts as Again. After a right answer you rate it Guessed, Unsure or Sure. Guessed is for a right answer that was luck: it does not count as right in your statistics, and the question goes back to box 1. Unsure means you knew most of it: it counts as right, and the question stays in its box. Sure means you knew it: it counts as right and moves up one box.</li>" +
+    "<li>Every question sits in one of five boxes. Again and Guessed put it back in box 1, Unsure keeps its box (a new question starts in box 1) and Sure moves it up by one. A question in box 4 or 5 counts as safe in the statistics. The next round takes questions from low boxes first and mixes in new ones.</li>" +
     "<li>Repeat wrong questions (switch on the catalog page, off by default): a wrong question comes back at the end of the round, up to " + CONFIG.MAX_REPEATS + " times. Repeats do not count towards your score.</li>" +
-    "<li>Practice my mistakes (button on the catalog page) starts a round with only the questions in box 1, which means answered wrong or guessed. A question leaves box 1 when you answer it right and rate it Good or Easy.</li>" +
+    "<li>Practice my mistakes (button on the catalog page) starts a round with only the questions in box 1: answered wrong or guessed, or right but rated Unsure on the first try. A question leaves box 1 when you answer it right and rate it Sure.</li>" +
     "<li>Scenario (catalog page, under Domain) starts a round with only the questions of one of the six scenarios of the Exam Guide. The real exam picks 4 of the 6 at random, so practise all of them. Domain and scenario are one choice: picking one clears the other.</li>" +
     "<li>By task statement (catalog page, under your domains) shows the rate for each of the 30 task statements of the Exam Guide, from " + TASK_MIN_ANSWERS + " answers. Every task statement has only a few questions, so one wrong answer moves the value a lot.</li>" +
     "<li>Practice weak domains (catalog page, catalogs with more than one domain) starts a round with questions only from the domains marked weak: below " + CONFIG.WEAK_THRESHOLD + " % over your last answers, with at least " + CONFIG.MIN_ANSWERS + " answers. The button is grey while no domain is weak.</li>" +
+    "<li>Check before answering (switch on the catalog page): tapping an answer only selects it, and it counts when you press Check answer. Useful on a phone, where a slipped tap would count.</li>" +
     "<li>Pause saves your round. You can resume it later, also after closing the page. The grid button next to the counter opens the overview of the round.</li>" +
     "</ul>" +
 
     "<h2>Exam simulation</h2>" +
+    "<p>Before you start, choose one of three modes. <strong>" + EXAM.MINUTES + " minutes</strong> is like the real exam. <strong>No time limit</strong> has no clock and no feedback until you submit. <strong>Review each answer</strong> has no clock either, and after each answer you check it and see the explanation. Only timed exams count for the ready indicator. A timed exam shows a pace hint, and the result shows where the time went.</p>" +
     "<p>Catalogs with enough questions offer an exam: " + EXAM.QUESTIONS + " questions in " + EXAM.MINUTES + " minutes, drawn by domain weight as in the Exam Guide, without feedback until you submit. You can go back, change answers, mark questions and pause (the real exam cannot be paused). When time runs out, the exam is submitted automatically. Wrong answers go to box 1.</p>" +
     "<p>The <strong>scenario exam</strong> works like the real one: it picks " + EXAM_SCENARIO_COUNT + " of the scenarios at random and draws all questions from them. The split by domain follows the weights as far as the chosen scenarios have enough questions of a domain, so it can differ from the normal exam.</p>" +
     '<p class="hint">The pass line of ' + EXAM.PASS_PERCENT + " % is only an approximation of the real score of 720 out of 1000 points.</p>" +
@@ -142,9 +154,12 @@ function renderHelp(notice) {
     "<h2>Statistics and weak areas</h2>" +
     "<p>The statistics show your rate for the last " + CONFIG.LAST_ANSWERS_WINDOW + " answers and for all answers, your rate per domain, how much of a catalog you have seen, your latest rounds and exams. A domain is a weak area when its rate is below " + CONFIG.WEAK_THRESHOLD + " % after at least " + CONFIG.MIN_ANSWERS + " answers. The ready indicator is only a guide based on this app's questions and no promise for the real exam.</p>" +
 
+    "<h2>Exam date and the Back button</h2>" +
+    "<p>Under More on the start page you can enter your exam date. The start page then shows how many days are left. The Back button of your browser (and the swipe gesture on a phone) goes to the previous screen of the app. During a round or an exam it asks before it leaves, and the round or exam is paused so you can resume it.</p>" +
+
     "<h2>Your data and backup</h2>" +
     "<p>Everything stays in this browser on this device. Nothing is sent to a server. Phone and laptop have separate progress. Clearing the browser data deletes your progress. \"Reset progress\" on a catalog page deletes it for that catalog.</p>" +
-    "<p>At the bottom of the start page, <strong>Export progress</strong> saves a backup file with your progress, answer history, rounds, exams, reports and imported catalogs. <strong>Restore from backup</strong> merges such a file into the browser you are using: for a question that exists in both, the newer answer wins, and nothing is deleted. Use it to move your progress between phone and laptop, or to keep a copy.</p>" +
+    "<p>At the bottom of the start page, <strong>Export progress</strong> saves a backup file with your progress, answer history, rounds, exams, reports and imported catalogs. <strong>Restore from backup</strong> merges such a file into the browser you are using: for a question that exists in both, the box of the newer answer is kept and the answers counted on each device are added up, and nothing is deleted. Use it to move your progress between phone and laptop, or to keep a copy.</p>" +
     '<p class="hint">Paused rounds, a running exam, the theme and your last round settings are not part of the backup. On an iPhone, a page saved to the home screen has its own storage, separate from Safari: use Export and Restore to move your progress into it.</p>' +
 
     "<h2>Install on your phone</h2>" +

@@ -1,19 +1,20 @@
 /* Question distribution: largest-remainder rounding so the quotas always add up to EXAM.QUESTIONS */
-function examQuotas() {
+function examQuotas(total) {
+  total = total || EXAM.QUESTIONS;
   const weightSum = DOMAINS.reduce(function (sum, domain) { return sum + (EXAM.DOMAIN_WEIGHTS[domain] || 0); }, 0);
   const quotas = {};
   const remainders = [];
   let assigned = 0;
 
   DOMAINS.forEach(function (domain) {
-    const exact = ((EXAM.DOMAIN_WEIGHTS[domain] || 0) / weightSum) * EXAM.QUESTIONS;
+    const exact = ((EXAM.DOMAIN_WEIGHTS[domain] || 0) / weightSum) * total;
     quotas[domain] = Math.floor(exact);
     assigned += quotas[domain];
     remainders.push({ domain: domain, fraction: exact - quotas[domain] });
   });
 
   remainders.sort(function (a, b) { return b.fraction - a.fraction; });
-  for (let i = 0; assigned < EXAM.QUESTIONS; i++, assigned++) {
+  for (let i = 0; assigned < total; i++, assigned++) {
     quotas[remainders[i % remainders.length].domain]++;
   }
   return quotas;
@@ -98,7 +99,8 @@ function firstUnansweredIndex(exam) {
 
 /* Exam state. answers[i] is the list of chosen option indexes or null.
    A multiple-response question counts as answered only once all N options are selected. */
-function createExam(catalog, now, byScenario) {
+function createExam(catalog, now, byScenario, mode) {
+  const examMode = EXAM.MODES.indexOf(mode) !== -1 ? mode : "timed";
   const selected = byScenario ? selectScenarioExamQuestions(catalog) : selectExamQuestions(catalog);
   const questions = selected.map(function (question) {
     return buildQuestion(question, shuffledOrder(question), false);
@@ -110,18 +112,37 @@ function createExam(catalog, now, byScenario) {
     marked: questions.map(function () { return false; }),
     currentIndex: 0,
     startedAt: now,
-    endTime: now + EXAM.MINUTES * 60000,
-    pausedAt: null // time when the exam was paused; the timer stands still while this is set
+    mode: examMode,
+    endTime: examMode === "timed" ? now + EXAM.MINUTES * 60000 : null, // null: no time limit
+    pausedAt: null, // time when the exam was paused; the timer stands still while this is set
+    wasPaused: false, // true once a timed exam was paused, shown in the result (the real exam has no pause)
+    checked: questions.map(function () { return false; }), // review mode: the answer of this question was checked and is locked
+    spent: questions.map(function () { return 0; }), // milliseconds spent on each question
+    visitStart: null // when the current question was shown, not saved
   };
 }
 
+function isTimedExam(exam) {
+  return exam.endTime !== null;
+}
+
+// Infinity for an exam without time limit, so "remaining <= 0" is never true for it
 function examRemainingMs(exam, now) {
+  if (!isTimedExam(exam)) return Infinity;
   return exam.endTime - (exam.pausedAt === null ? now : exam.pausedAt);
+}
+
+// Adds the time since the question was shown to its total. Call before leaving the question (next, overview, pause, submit).
+function noteExamLeave(exam, now) {
+  if (exam.visitStart !== null && exam.pausedAt === null) exam.spent[exam.currentIndex] += Math.max(0, now - exam.visitStart);
+  exam.visitStart = null;
 }
 
 // Pausing is a convenience of this app: the real exam cannot be paused.
 function pauseExam(exam, now) {
+  noteExamLeave(exam, now);
   if (exam.pausedAt === null) exam.pausedAt = now;
+  if (isTimedExam(exam)) exam.wasPaused = true;
 }
 
 // The paused time is shifted out of the start and end time, so the time left stays the same.
@@ -129,7 +150,7 @@ function resumePausedExam(exam, now) {
   if (exam.pausedAt === null) return;
   const pausedFor = now - exam.pausedAt;
   exam.startedAt += pausedFor;
-  exam.endTime += pausedFor;
+  if (isTimedExam(exam)) exam.endTime += pausedFor;
   exam.pausedAt = null;
 }
 
@@ -140,6 +161,7 @@ function isExamAnswered(exam, index) {
 
 function selectExamOption(exam, optionIndex) {
   const index = exam.currentIndex;
+  if (exam.checked[index]) return; // review mode: a checked answer is final
   const selected = toggleSelection(exam.questions[index], exam.answers[index] || [], optionIndex);
   exam.answers[index] = selected.length > 0 ? selected : null;
 }
@@ -159,13 +181,17 @@ function serializeExam(exam) {
     startedAt: exam.startedAt,
     endTime: exam.endTime,
     pausedAt: exam.pausedAt,
+    wasPaused: exam.wasPaused === true,
+    mode: exam.mode,
     currentIndex: exam.currentIndex,
     questions: exam.questions.map(function (question, index) {
       return {
         id: question.id,
         optionOrder: question.options.map(function (option) { return option.originalIndex; }),
         answer: exam.answers[index],
-        marked: exam.marked[index]
+        marked: exam.marked[index],
+        checked: exam.checked[index] === true,
+        spent: exam.spent[index]
       };
     })
   };
@@ -174,17 +200,24 @@ function serializeExam(exam) {
 // Returns null when the saved data does not match the catalog or is damaged.
 function restoreExam(catalog, saved) {
   if (!saved || !Array.isArray(saved.questions) || saved.questions.length === 0) return null;
-  if (!Number.isFinite(saved.endTime) || !Number.isFinite(saved.startedAt)) return null;
+  const mode = EXAM.MODES.indexOf(saved.mode) !== -1 ? saved.mode : "timed";
+  if (!Number.isFinite(saved.startedAt)) return null;
+  if (mode === "timed" ? !Number.isFinite(saved.endTime) : saved.endTime !== null) return null;
 
   const exam = {
     catalog: catalog,
     questions: [],
     answers: [],
     marked: [],
+    checked: [],
+    spent: [],
+    visitStart: null,
+    mode: mode,
     currentIndex: 0,
     startedAt: saved.startedAt,
-    endTime: saved.endTime,
-    pausedAt: Number.isFinite(saved.pausedAt) ? saved.pausedAt : null
+    endTime: mode === "timed" ? saved.endTime : null,
+    pausedAt: Number.isFinite(saved.pausedAt) ? saved.pausedAt : null,
+    wasPaused: mode === "timed" && (saved.wasPaused === true || Number.isFinite(saved.pausedAt))
   };
 
   for (let index = 0; index < saved.questions.length; index++) {
@@ -202,6 +235,8 @@ function restoreExam(catalog, saved) {
     exam.questions.push(question);
     exam.answers.push(selected);
     exam.marked.push(entry.marked === true);
+    exam.checked.push(mode === "review" && entry.checked === true);
+    exam.spent.push(Number.isFinite(entry.spent) && entry.spent >= 0 ? entry.spent : 0);
   }
 
   const index = Number.isInteger(saved.currentIndex) ? saved.currentIndex : 0;
@@ -232,7 +267,7 @@ function scoreExam(exam, timedOut, now) {
   });
 
   const total = exam.questions.length;
-  const finishedAt = Math.min(now, exam.endTime);
+  const finishedAt = isTimedExam(exam) ? Math.min(now, exam.endTime) : now;
   return {
     total: total,
     correct: correct,
@@ -243,8 +278,30 @@ function scoreExam(exam, timedOut, now) {
     perDomain: perDomain,
     wrongQuestions: wrongQuestions,
     timedOut: timedOut,
+    wasPaused: exam.wasPaused === true,
+    mode: exam.mode,
+    pace: examPace(exam),
     durationSeconds: Math.max(0, Math.round((finishedAt - exam.startedAt) / 1000))
   };
+}
+
+/* Pace: average time per question and the slowest ones. Only questions that were opened count. */
+function examPace(exam) {
+  const visited = exam.spent.map(function (ms, index) { return { number: index + 1, ms: ms, marked: exam.marked[index] }; })
+    .filter(function (item) { return item.ms > 0; });
+  const total = visited.reduce(function (sum, item) { return sum + item.ms; }, 0);
+  return {
+    averageMs: visited.length ? total / visited.length : 0,
+    slowest: visited.slice().sort(function (a, b) { return b.ms - a.ms; }).slice(0, EXAM.PACE_SLOWEST),
+    markedMs: visited.filter(function (item) { return item.marked; }).reduce(function (sum, item) { return sum + item.ms; }, 0),
+    markedCount: visited.filter(function (item) { return item.marked; }).length
+  };
+}
+
+// Minutes ahead (negative) or behind (positive) the plan of EXAM.MINUTES / EXAM.QUESTIONS per answered question
+function examPlanDelayMs(exam, now) {
+  const elapsed = EXAM.MINUTES * 60000 - examRemainingMs(exam, now);
+  return elapsed - countExamAnswered(exam) * (EXAM.MINUTES * 60000 / EXAM.QUESTIONS);
 }
 
 /* Tracking: a wrong answer puts the question into box 1, a right answer leaves the box as it is.
@@ -259,12 +316,8 @@ function applyExamTracking(exam, now) {
     const isCorrect = isSelectionCorrect(question, exam.answers[index]);
     const entry = progressEntry(progress, catalogId, question.id);
 
-    if (isCorrect) {
-      entry.right++;
-    } else {
-      entry.wrong++;
-      entry.box = 1;
-    }
+    countAnswer(entry, isCorrect);
+    if (!isCorrect) entry.box = 1;
     entry.last = now;
     progress[progressKey(catalogId, question.id)] = entry;
     history.push({ t: now, catalogId: catalogId, questionId: question.id, domain: question.domain, correct: isCorrect, mode: "exam" });
@@ -287,6 +340,7 @@ function recordExamResult(exam, score, now) {
     percent: score.percent,
     perDomain: perDomain,
     timedOut: score.timedOut,
+    mode: score.mode,
     durationSeconds: score.durationSeconds
   });
   return saveExamResults(results);
