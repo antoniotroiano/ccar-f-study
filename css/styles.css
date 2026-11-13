@@ -1000,11 +1000,16 @@ p { margin: 0; }
 }
 
 .site-brand {
+  -webkit-appearance: none; /* iOS Safari draws a grey button otherwise */
+  appearance: none;
   min-height: 44px;
   margin: 0;
   padding: 0;
   border: 0;
-  background: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  -webkit-tap-highlight-color: transparent;
   color: inherit;
   font: inherit;
   font-size: 0.875rem;
@@ -1013,7 +1018,7 @@ p { margin: 0; }
   text-align: left;
   cursor: pointer;
 }
-.site-brand:hover { color: var(--primary); }
+@media (hover: hover) { .site-brand:hover { color: var(--primary); } }
 
 .theme-toggle {
   display: inline-flex;
